@@ -1,44 +1,238 @@
 # cow_spray_ws
 
-统一的 ROS 2 Humble 工作区，由当前已验证的相机、视觉和 ESTUN 控制代码增量迁移而来。
+基于 ROS 2 Humble 的奶牛乳头视觉识别与 ESTUN 机械臂视觉伺服系统。系统使用 SICK Visionary-T Mini 获取强度图和深度图，经 YOLO、ROI 深度定位、乳头语义 ID 跟踪与短时补点后，将带时间戳的目标送入 3D PBVS 控制器，并在唯一的 250 Hz CRI 线程中完成 Ruckig 运动整形和机械臂控制。
+
+> 本项目会连接真实工业机械臂。首次运行、修改手眼标定、工作空间、目标偏移或速度参数后，必须先使用 `dry_run` 和低速配置验证，并确保急停可用。
+
+## 系统结构
+
+![当前 ROS 2 乳头识别与机械臂视觉伺服系统结构图](docs/system_architecture.svg)
+
+图中连线含义：
+
+- 黑色实线：ROS Topic、相机数据或 CRI 控制数据。
+- 青色虚线：TF/TF2 坐标变换；眼在手上模式必须使用图像采集时间戳查询历史 TF。
+- 紫色点划线：人工使能 Service。
+- `observed` 表示当前帧真实检测；`predicted` 表示利用已建立的四点模板进行的短时补点，预测点不会伪装成新的 YOLO 测量。
+
+## 工作流程
 
 ```text
-camera            SICK ToF 采集、内参、深度和强度图
-teat_detection    YOLO、ROI 深度、3D 坐标、稳定乳头 ID、调试图
-cow_interfaces    项目自定义消息（下一阶段替换 vision_msgs）
-arm               Topic + 历史时刻 TF2、PBVS、运动整形、CRI
-robot_description 手眼标定参数和 TF 发布
-cow_bringup       安全的统一启动入口
+SICK 强度图 + 深度图
+        ↓ 同时间戳同步
+YOLO 乳头 bbox
+        ↓ ROI 深度中位数 + 相机内参投影
+相机坐标系三维乳头点
+        ↓ ID绑定、刚体拟合、短时补点
+/udder/tracked_detections
+        ↓ 图像时间戳对应的历史 TF2
+目标坐标 / PBVS误差
+        ↓ CA Kalman + freshness + Ruckig
+唯一 250 Hz CRI线程
+        ↓
+ESTUN机械臂
 ```
 
-## 系统结构框图
-![系统架构图](./images/architecture.png)
+## 功能包
+
+| 功能包 | 用途 |
+|---|---|
+| `camera` | SICK SDK封装、TCP采集、强度图、深度图、相机内参和距离偏置 |
+| `teat_detection` | YOLO推理、ROI深度处理、2D→3D、乳头ID、补点状态和调试画面 |
+| `arm` | 历史TF2、目标管理、CA Kalman、3D PBVS、Ruckig、CRI及安全检查 |
+| `robot_description` | 眼在手上/眼在手外手眼标定参数和TF发布 |
+| `cow_bringup` | 相机、视觉、TF与机械臂的统一启动入口 |
+| `cow_interfaces` | 项目自定义消息定义；当前生产链仍使用已验证的 `vision_msgs` 接口 |
+
+## 核心节点与接口
+
+| 节点 | 主要输入 | 主要输出 |
+|---|---|---|
+| `/camera_node` | SICK TCP数据流 | `/camera_node/intensity`、`depth`、`camera_info`、`range_offset_mm` |
+| `/detector_node` | 强度图、深度图、相机内参 | `/detector_node/detections` |
+| `/teat_id_node` | 原始检测结果 | `/udder/tracked_detections`、`/udder/status`、`udder_frame` |
+| `/sick_yolo_debug` | 图像、深度、原始/跟踪检测、状态 | `/sick_yolo_debug/image` |
+| `/hand_eye_tf` | `hand_eye.yaml` | `tool0 → sick_camera_optical_frame` 静态TF |
+| `/estun_driver` | 跟踪目标、TF2、CRI反馈 | 250 Hz CRI命令、`base_link → tool0`、状态与调试话题 |
+
+控制与诊断接口：
+
+```text
+/estun_driver/enable       SetBool，使能或停止动作
+/estun_driver/status       当前目标、序列阶段和安全状态
+/estun_driver/action_log   到达、切点和回位事件
+/pbvs/debug                PBVS误差、期望速度、Ruckig输出和命令位置
+/sick_yolo_debug/image     带bbox、乳头ID和预测状态的调试画面
+```
+
+## 视觉识别
+
+1. 强度图使用 1%～99% 分位数拉伸为 8 位三通道图像。
+2. YOLO检测乳头 bbox；当前生产配置为 `imgsz=256`、`confidence=0.50`、`iou=0.45`。
+3. 每个 bbox 只读取中央 50% ROI，过滤无效深度并使用 MAD 剔除前景/背景离群值。
+4. 根据实时 `CameraInfo` 和 `range_offset_mm` 将有效像素投影为相机光学坐标系三维点。
+5. 输出保留原始采集时间戳，供眼在手上的历史TF2查询使用。
+
+主要配置：[src/teat_detection/config/detection.yaml](src/teat_detection/config/detection.yaml)。
+
+## 乳头ID与补点
+
+YOLO只判断“是否为乳头”，`teat_id_node` 再绑定四个语义ID：
+
+```text
+teat_front_left   teat_front_right
+teat_rear_left    teat_rear_right
+```
+
+| 可见点数量 | 当前处理 |
+|---:|---|
+| 4 | 根据相机系 Z/X 完成首次前后左右绑定，建立完整四点局部模板 |
+| 3 | 最大Z间隙分前后排，完成三点ID和 `udder_frame` 降级拟合；当前不生成第4个点 |
+| 2 | 已有完整模板且未超时才允许补点；根据两点变化估计旋转和平移并恢复另外两点 |
+| 0～1 | 最多匹配已有ID，不重建完整乳房位姿 |
+
+后续帧通过全排列最小三维位移保持ID，并使用加权Kabsch拟合乳房刚体运动。连续匹配失败后进入重新捕获，避免错误ID立即进入控制链。
+
+真实检测结果通过 `/udder/tracked_detections` 发布；补点坐标和来源记录在 `/udder/status` 的 `predicted_points`、`observed`、`predicted` 和 `lost` 字段中。
+
+## 运动跟随
+
+`estun_driver` 的执行链如下：
+
+1. 使用检测消息原始时间戳查询 `camera → base_link` 历史TF2。
+2. 在短窗口中确认ID结构稳定，再锁定本轮目标。
+3. 对XYZ分别使用恒加速度 Kalman 模型估计位置、速度和加速度。
+4. 在相机坐标系计算3D PBVS误差，并转换为机械臂基坐标系速度。
+5. 使用 Ruckig 对速度、加速度和冲击进行在线约束。
+6. 在唯一的250 Hz CRI线程中读取反馈、生成命令并调用 Codroid SDK。
+7. 目标超时、工作空间越界、命令跟随误差、报警、急停或CRI反馈超时都会触发减速或停止。
+
+当前动作目标只由 `target_sequence` 列表控制：
+
+```yaml
+target_sequence: ["teat_front_left"]
+target_offsets: [-0.80, 0.0, -0.20]
+```
+
+四点动作示例：
+
+```yaml
+target_sequence: ["teat_front_left", "teat_rear_left", "teat_rear_right", "teat_front_right"]
+target_offsets: [-0.80, 0.0, -0.20,
+                 -0.80, 0.0, -0.20,
+                 -0.80, 0.0, -0.20,
+                 -0.80, 0.0, -0.20]
+```
+
+`target_offsets` 必须严格包含 `3 × 目标数量` 个值，单位为米、坐标系为 `base_link`。
+
+主要配置：[src/arm/config/estun_driver.yaml](src/arm/config/estun_driver.yaml)。
+
+## TF关系
+
+眼在手上模式的核心TF链：
+
+```text
+base_link ──动态反馈──> tool0 ──手眼标定──> sick_camera_optical_frame
+```
+
+- `base_link → tool0`：由 `estun_driver` 根据机械臂TCP反馈动态发布。
+- `tool0 → sick_camera_optical_frame`：由 `robot_description` 根据手眼标定结果静态发布。
+- 视觉控制必须使用图像采集时刻查询完整TF链，禁止在眼在手上模式回退到“最新TF”。
+
+手眼标定结果位于 [src/robot_description/config/hand_eye.yaml](src/robot_description/config/hand_eye.yaml)。
+
+## 环境要求
+
+- Ubuntu 22.04
+- ROS 2 Humble
+- Python 3.10
+- SICK Visionary-T Mini及本仓库内SDK封装
+- PyTorch、Ultralytics YOLO、NumPy、OpenCV
+- `ruckig`
+- Codroid Python SDK 2.1.10
+
+请保证 ROS 2 节点运行使用的 Python 环境中同时存在 `torch`、`ultralytics`、`ruckig` 和 Codroid SDK，避免 `ros2 launch` 调用到另一个Python解释器。
 
 ## 构建
 
 ```bash
-cd /home/xiaoyu/Desktop/workspace/1/cow_spray_ws
+cd ~/Desktop/workspace/1/cow_spray_ws
 source /opt/ros/humble/setup.bash
+
+# 如果依赖安装在conda环境中
+conda activate ros2_humble
+
 colcon build --symlink-install
 source install/setup.bash
 ```
 
 ## 启动
 
-只启动视觉和手眼 TF，不连接机械臂：
+只启动相机、视觉和手眼TF，不连接机械臂：
 
 ```bash
 ros2 launch cow_bringup bringup.launch.py
 ```
 
-连接机械臂前先确认工作空间、外参和急停：
+查看检测画面：
+
+```bash
+ros2 run rqt_image_view rqt_image_view /sick_yolo_debug/image
+```
+
+连接机械臂但保持动作未使能：
 
 ```bash
 ros2 launch cow_bringup bringup.launch.py start_arm:=true
+```
+
+确认画面、TF、目标坐标、工作空间、急停和机械臂状态均正常后，再使能动作：
+
+```bash
 ros2 service call /estun_driver/enable std_srvs/srv/SetBool "{data: true}"
 ```
 
-调试图：`/sick_yolo_debug/image`；稳定目标：`/udder/tracked_detections`。
+停止跟随：
 
-`cow_interfaces` 已定义稳定消息，但第一阶段仍使用已验证的 `vision_msgs` 接口；
-待新旧 Topic 对照验证后再切换，避免同时改结构和运行协议。
+```bash
+ros2 service call /estun_driver/enable std_srvs/srv/SetBool "{data: false}"
+```
+
+## 调试命令
+
+```bash
+# 节点与话题
+ros2 node list
+ros2 topic list
+
+# 检测和补点状态
+ros2 topic echo /udder/status
+ros2 topic hz /udder/tracked_detections
+
+# PBVS与动作状态
+ros2 topic echo /pbvs/debug
+ros2 topic echo /estun_driver/status
+
+# 手眼和TCP坐标链
+ros2 run tf2_ros tf2_echo tool0 sick_camera_optical_frame
+ros2 run tf2_ros tf2_echo base_link sick_camera_optical_frame
+```
+
+## 目录结构
+
+```text
+cow_spray_ws/
+├── docs/
+│   └── system_architecture.svg
+├── src/
+│   ├── camera/
+│   ├── teat_detection/
+│   ├── cow_interfaces/
+│   ├── arm/
+│   ├── robot_description/
+│   └── cow_bringup/
+├── build/       # 本地生成，不提交Git
+├── install/     # 本地生成，不提交Git
+└── log/         # 本地生成，不提交Git
+```

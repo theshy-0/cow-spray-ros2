@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1680 1060" role="img" aria-labelledby="arch-title arch-desc">
+    <style>
+.title{font-size:34px;font-weight:600;fill:#172033}.subtitle{font-size:18px;fill:#5f6b7a}.col-title{font-size:18px;font-weight:600;fill:#172033}.node-title{font-size:17px;font-weight:600;fill:#172033}.label{font-size:15px;fill:#172033}.small{font-size:13px;fill:#5f6b7a}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.sep{stroke:#b8c0cc;stroke-width:1.5;stroke-dasharray:7 7}.box{stroke:#b8c0cc;stroke-width:1.5;rx:12}.sensor{fill:#eaf1ff}.vision{fill:#ecf8ed}.tf{fill:#e9f8fb}.control{fill:#edf2ff}.robot{fill:#f3ecff}.diag{fill:#fff6e5}.topic-line{fill:none;stroke:#172033;stroke-width:2;marker-end:url(#arrow-topic)}.tf-line{fill:none;stroke:#0891b2;stroke-width:2;stroke-dasharray:7 6;marker-end:url(#arrow-tf)}.service-line{fill:none;stroke:#7c3aed;stroke-width:2;stroke-dasharray:9 4 2 4;marker-end:url(#arrow-service)}.feedback-line{fill:none;stroke:#d97706;stroke-width:2;marker-end:url(#arrow-feedback)}.branch-line{fill:none;stroke:#5f6b7a;stroke-width:1.7;marker-end:url(#arrow-muted)}.pill{stroke-width:1.3;rx:18}.legend-line{stroke-width:3}
+</style><title id="arch-title">当前ROS 2乳头识别与机械臂视觉伺服系统结构图</title>
+    <desc id="arch-desc">从SICK相机采集，经YOLO检测、三维定位、乳头ID绑定与补点，再经过TF2、Kalman、PBVS和Ruckig，在唯一250赫兹CRI线程中控制ESTUN机械臂。</desc>
+    <defs>
+      <marker id="arrow-topic" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#172033"/></marker>
+      <marker id="arrow-tf" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#0891b2"/></marker>
+      <marker id="arrow-service" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#7c3aed"/></marker>
+      <marker id="arrow-feedback" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#d97706"/></marker>
+      <marker id="arrow-muted" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#5f6b7a"/></marker>
+    </defs>
+
+    <text x="840" y="52" text-anchor="middle" class="title">当前 ROS 2 节点结构图</text>
+    <text x="840" y="84" text-anchor="middle" class="subtitle">动态乳头识别、短时补点与 ESTUN 机械臂视觉伺服系统</text>
+
+    <line x1="315" y1="128" x2="315" y2="1010" class="sep"/>
+    <line x1="735" y1="128" x2="735" y2="1010" class="sep"/>
+    <line x1="1080" y1="128" x2="1080" y2="1010" class="sep"/>
+    <line x1="1400" y1="128" x2="1400" y2="1010" class="sep"/>
+
+    <rect x="24" y="112" width="266" height="42" class="box sensor"/>
+    <text x="157" y="139" text-anchor="middle" class="col-title">1. 传感器与采集</text>
+    <rect x="345" y="112" width="360" height="42" class="box vision"/>
+    <text x="525" y="139" text-anchor="middle" class="col-title">2. 视觉识别与乳头补点</text>
+    <rect x="765" y="112" width="285" height="42" class="box tf"/>
+    <text x="907" y="139" text-anchor="middle" class="col-title">3. TF2 与手眼标定</text>
+    <rect x="1110" y="112" width="260" height="42" class="box control"/>
+    <text x="1240" y="139" text-anchor="middle" class="col-title">4. 运动规划与跟随</text>
+    <rect x="1430" y="112" width="225" height="42" class="box robot"/>
+    <text x="1542" y="139" text-anchor="middle" class="col-title">5. 机器人本体</text>
+
+    <!-- TF and calibration layer -->
+    <rect x="785" y="175" width="245" height="76" class="box tf"/>
+    <text x="907" y="202" text-anchor="middle" class="node-title mono">/hand_eye_tf</text>
+    <text x="907" y="226" text-anchor="middle" class="label">静态手眼标定矩阵</text>
+    <text x="907" y="244" text-anchor="middle" class="small">eye-in-hand</text>
+    <rect x="770" y="270" width="275" height="38" class="box pill tf"/>
+    <text x="907" y="294" text-anchor="middle" class="small mono">tool0 → sick_camera_optical_frame</text>
+    <path d="M907 251 L907 270" class="tf-line"/>
+
+    <rect x="760" y="330" width="625" height="48" class="box tf"/>
+    <text x="1072" y="360" text-anchor="middle" class="node-title mono">/tf · /tf_static（全局坐标变换层）</text>
+    <path d="M907 308 L907 330" class="tf-line"/>
+
+    <!-- Sensor and camera node -->
+    <rect x="30" y="430" width="112" height="174" class="box sensor"/>
+    <text x="86" y="464" text-anchor="middle" class="node-title">SICK</text>
+    <text x="86" y="490" text-anchor="middle" class="label">Visionary-T</text>
+    <text x="86" y="514" text-anchor="middle" class="label">Mini</text>
+    <text x="86" y="548" text-anchor="middle" class="small">ToF相机</text>
+    <text x="86" y="571" text-anchor="middle" class="small mono">192.168.1.30</text>
+
+    <rect x="170" y="448" width="126" height="138" class="box sensor"/>
+    <text x="233" y="481" text-anchor="middle" class="node-title mono">/camera_node</text>
+    <text x="233" y="509" text-anchor="middle" class="label">TCP采集</text>
+    <text x="233" y="533" text-anchor="middle" class="label">统一时间戳</text>
+    <text x="233" y="557" text-anchor="middle" class="small">16UC1 / mm</text>
+    <path d="M142 517 L170 517" class="topic-line"/>
+
+    <!-- Camera topics -->
+    <rect x="340" y="392" width="184" height="36" class="box pill sensor"/>
+    <text x="432" y="416" text-anchor="middle" class="small mono">/camera_node/intensity</text>
+    <rect x="340" y="447" width="184" height="36" class="box pill sensor"/>
+    <text x="432" y="471" text-anchor="middle" class="small mono">/camera_node/depth</text>
+    <rect x="340" y="502" width="184" height="36" class="box pill sensor"/>
+    <text x="432" y="526" text-anchor="middle" class="small mono">/camera_node/camera_info</text>
+    <rect x="340" y="557" width="184" height="36" class="box pill sensor"/>
+    <text x="432" y="581" text-anchor="middle" class="small mono">/camera_node/range_offset_mm</text>
+    <path d="M296 472 L320 472 L320 410 L340 410" class="topic-line"/>
+    <path d="M296 500 L326 500 L326 465 L340 465" class="topic-line"/>
+    <path d="M296 528 L326 528 L326 520 L340 520" class="topic-line"/>
+    <path d="M296 556 L326 556 L326 575 L340 575" class="topic-line"/>
+
+    <!-- Detector -->
+    <rect x="550" y="380" width="170" height="226" class="box vision"/>
+    <text x="635" y="412" text-anchor="middle" class="node-title mono">/detector_node</text>
+    <text x="635" y="443" text-anchor="middle" class="label">强度图增强</text>
+    <text x="635" y="469" text-anchor="middle" class="label">YOLO bbox检测</text>
+    <text x="635" y="495" text-anchor="middle" class="label">Depth ROI 50%</text>
+    <text x="635" y="521" text-anchor="middle" class="label">MAD去离群</text>
+    <text x="635" y="547" text-anchor="middle" class="label">2D → 相机系3D</text>
+    <text x="635" y="579" text-anchor="middle" class="small">bbox + score + XYZ</text>
+    <path d="M524 410 L550 410" class="topic-line"/>
+    <path d="M524 465 L550 465" class="topic-line"/>
+    <path d="M524 520 L550 520" class="topic-line"/>
+    <path d="M524 575 L550 575" class="topic-line"/>
+
+    <!-- Raw detections and ID node -->
+    <rect x="755" y="432" width="235" height="66" class="box pill vision"/>
+    <text x="872" y="458" text-anchor="middle" class="label mono">/detector_node/detections</text>
+    <text x="872" y="482" text-anchor="middle" class="small">原始乳头：尚无稳定语义ID</text>
+    <path d="M720 465 L755 465" class="topic-line"/>
+
+    <rect x="780" y="525" width="205" height="234" class="box vision"/>
+    <text x="882" y="556" text-anchor="middle" class="node-title mono">/teat_id_node</text>
+    <text x="882" y="588" text-anchor="middle" class="label">首次：Z分前后、X分左右</text>
+    <text x="882" y="614" text-anchor="middle" class="label">后续：最小3D位移匹配</text>
+    <text x="882" y="640" text-anchor="middle" class="label">3点：降级拟合udder_frame</text>
+    <text x="882" y="666" text-anchor="middle" class="label">2点：短时四点模板补齐</text>
+    <text x="882" y="692" text-anchor="middle" class="label">observed / predicted分离</text>
+    <text x="882" y="726" text-anchor="middle" class="small">ID：FL · FR · RL · RR</text>
+    <path d="M872 498 L872 525" class="topic-line"/>
+
+    <rect x="760" y="786" width="245" height="50" class="box pill vision"/>
+    <text x="882" y="807" text-anchor="middle" class="small mono">/udder/tracked_detections</text>
+    <text x="882" y="826" text-anchor="middle" class="small">真实检测 + 稳定ID + 原始时间戳</text>
+    <rect x="760" y="852" width="245" height="50" class="box pill diag"/>
+    <text x="882" y="873" text-anchor="middle" class="small mono">/udder/status</text>
+    <text x="882" y="892" text-anchor="middle" class="small">observed · predicted · lost</text>
+    <path d="M850 759 L850 786" class="topic-line"/>
+    <path d="M916 759 L916 852" class="branch-line"/>
+
+    <!-- Debug branch -->
+    <rect x="455" y="700" width="226" height="92" class="box diag"/>
+    <text x="568" y="729" text-anchor="middle" class="node-title mono">/sick_yolo_debug</text>
+    <text x="568" y="755" text-anchor="middle" class="label">bbox · ID · 真实/预测状态</text>
+    <text x="568" y="778" text-anchor="middle" class="small mono">/sick_yolo_debug/image</text>
+    <path d="M635 606 L635 675 L568 675 L568 700" class="branch-line"/>
+    <path d="M780 642 L700 642 L700 746 L681 746" class="branch-line"/>
+
+    <!-- Controller -->
+    <rect x="1110" y="400" width="252" height="350" class="box control"/>
+    <text x="1236" y="434" text-anchor="middle" class="node-title mono">/estun_driver</text>
+    <text x="1236" y="466" text-anchor="middle" class="label">带时间戳Topic目标</text>
+    <text x="1236" y="492" text-anchor="middle" class="label">历史TF2：camera → base</text>
+    <text x="1236" y="518" text-anchor="middle" class="label">5帧窗口锁定稳定ID</text>
+    <text x="1236" y="544" text-anchor="middle" class="label">XYZ CA Kalman</text>
+    <text x="1236" y="570" text-anchor="middle" class="label">3D PBVS（相机系）</text>
+    <text x="1236" y="596" text-anchor="middle" class="label">Ruckig v / a / j整形</text>
+    <text x="1236" y="622" text-anchor="middle" class="label">目标超时渐退与安全检查</text>
+    <text x="1236" y="648" text-anchor="middle" class="label">唯一250Hz CRI线程</text>
+    <text x="1236" y="685" text-anchor="middle" class="small">target_sequence（当前：FL）</text>
+    <text x="1236" y="709" text-anchor="middle" class="small">完成 → Home</text>
+    <path d="M1005 811 L1058 811 L1058 520 L1110 520" class="topic-line"/>
+    <path d="M1072 378 L1072 420 L1110 420" class="tf-line"/>
+
+    <rect x="1108" y="790" width="255" height="58" class="box pill control"/>
+    <text x="1235" y="814" text-anchor="middle" class="small mono">/estun_driver/enable</text>
+    <text x="1235" y="835" text-anchor="middle" class="small">SetBool：人工使能/禁用</text>
+    <path d="M1235 790 L1235 750" class="service-line"/>
+
+    <rect x="1108" y="870" width="255" height="94" class="box diag"/>
+    <text x="1235" y="896" text-anchor="middle" class="small mono">/pbvs/debug</text>
+    <text x="1235" y="919" text-anchor="middle" class="small mono">/estun_driver/status</text>
+    <text x="1235" y="942" text-anchor="middle" class="small mono">/estun_driver/action_log</text>
+    <path d="M1290 750 L1290 870" class="branch-line"/>
+
+    <!-- Dynamic robot TF -->
+    <rect x="1010" y="968" width="275" height="40" class="box pill tf"/>
+    <text x="1147" y="994" text-anchor="middle" class="small mono">TF：base_link → tool0（动态反馈）</text>
+    <path d="M1236 750 L1236 968" class="tf-line"/>
+    <path d="M1050 968 L1050 378" class="tf-line"/>
+
+    <!-- Robot -->
+    <rect x="1450" y="425" width="200" height="224" class="box robot"/>
+    <text x="1550" y="462" text-anchor="middle" class="node-title">ESTUN</text>
+    <text x="1550" y="493" text-anchor="middle" class="label">机械臂控制器</text>
+    <text x="1550" y="519" text-anchor="middle" class="label">Codroid SDK / CRI</text>
+    <text x="1550" y="557" text-anchor="middle" class="label">机械臂本体</text>
+    <text x="1550" y="592" text-anchor="middle" class="small mono">robot 192.168.1.136</text>
+    <text x="1550" y="615" text-anchor="middle" class="small mono">local 192.168.1.10</text>
+    <path d="M1362 514 L1450 514" class="topic-line"/>
+    <text x="1406" y="498" text-anchor="middle" class="small">CRI命令</text>
+    <path d="M1450 585 L1388 585 L1388 680 L1362 680" class="feedback-line"/>
+    <text x="1422" y="608" text-anchor="middle" class="small">TCP反馈</text>
+
+    <!-- Sequence and transform notes -->
+    <rect x="1438" y="700" width="105" height="140" class="box control"/>
+    <text x="1490" y="728" text-anchor="middle" class="node-title">动作序列</text>
+    <text x="1490" y="760" text-anchor="middle" class="label">FL</text>
+    <text x="1490" y="789" text-anchor="middle" class="label">↓</text>
+    <text x="1490" y="818" text-anchor="middle" class="label">Home</text>
+    <rect x="1558" y="700" width="100" height="140" class="box tf"/>
+    <text x="1608" y="728" text-anchor="middle" class="node-title">坐标核心</text>
+    <text x="1608" y="760" text-anchor="middle" class="small">camera点</text>
+    <text x="1608" y="786" text-anchor="middle" class="label">↓ TF2</text>
+    <text x="1608" y="814" text-anchor="middle" class="small">base点</text>
+
+    <!-- Legend -->
+    <rect x="1388" y="870" width="270" height="144" class="box diag"/>
+    <text x="1523" y="898" text-anchor="middle" class="node-title">图例（连线含义）</text>
+    <line x1="1412" y1="925" x2="1470" y2="925" class="legend-line" stroke="#172033"/>
+    <text x="1484" y="930" class="small">实线：Topic / 控制数据</text>
+    <line x1="1412" y1="952" x2="1470" y2="952" class="legend-line" stroke="#0891b2" stroke-dasharray="7 6"/>
+    <text x="1484" y="957" class="small">虚线：TF / TF2坐标变换</text>
+    <line x1="1412" y1="979" x2="1470" y2="979" class="legend-line" stroke="#7c3aed" stroke-dasharray="9 4 2 4"/>
+    <text x="1484" y="984" class="small">点划线：Service使能</text>
+  </svg>
