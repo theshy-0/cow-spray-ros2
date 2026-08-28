@@ -11,6 +11,9 @@ robot_description 手眼标定参数和 TF 发布
 cow_bringup       安全的统一启动入口
 ```
 
+## 系统结构框图
+![系统架构图](./images/architecture.png)
+
 ## 构建
 
 ```bash

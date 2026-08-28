@@ -15,11 +15,11 @@ estun_driver:
     # udder_frame 作为参考系（用于推断缺失乳头），不进入动作序列
     udder_frame: "udder_frame"
     # 4 点序列：只做 4 个乳头（按治疗顺序）
-    target_sequence: ["teat_front_left"]
+    target_sequence: ["teat_front_left", "teat_rear_left", "teat_rear_right", "teat_front_right"]
     # 每点 base 系附加偏移（乳头点加喷洒偏移，Z 向下）
     # 每点 base 系附加偏移（拍平 3*N；统一加 Z 上方 0.08 安全偏移避免遮挡相机，
     # 乳头点再叠加喷洒下移 -0.05，故乳头净 Z=+0.03）
-    target_offsets: [-0.80, 0.0, -0.20]
+    target_offsets: [-0.80, 0.0, -0.40, -0.80, 0.0, -0.40, -0.80, 0.0, -0.40, -0.80, 0.0, -0.40]
     dry_run: false
     return_home: true
     loop: false
