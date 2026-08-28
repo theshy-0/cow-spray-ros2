@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="cow_spray_handeye">
+  <!-- Documentation model only. Runtime base_link -> tool0 comes from the ESTUN driver. -->
+  <link name="tool0"/>
+  <link name="sick_camera_optical_frame"/>
+  <joint name="tool0_to_sick_camera" type="fixed">
+    <parent link="tool0"/>
+    <child link="sick_camera_optical_frame"/>
+    <origin xyz="-0.069530 -0.293968 -0.000705" rpy="2.219 -0.128 0.028"/>
+  </joint>
+</robot>

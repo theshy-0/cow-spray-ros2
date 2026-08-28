@@ -1,0 +1,73 @@
+detector_node:
+  ros__parameters:
+    intensity_topic: "/camera_node/intensity"
+    depth_topic: "/camera_node/depth"
+    camera_info_topic: "/camera_node/camera_info"
+    range_offset_topic: "/camera_node/range_offset_mm"
+    detections_topic: "/detector_node/detections"
+    model_path: ""
+    target_class_id: 0
+    confidence: 0.50
+    iou: 0.45
+    inference_size: 256
+    device: ""
+    parent_frame: "sick_camera_optical_frame"
+    child_frame: "target"
+    roi_scale: 0.50
+    min_valid_points: 8
+    max_depth_m: 10.0
+
+sick_yolo_debug:
+  ros__parameters:
+    intensity_topic: "/camera_node/intensity"
+    depth_topic: "/camera_node/depth"
+    detections_topic: "/detector_node/detections"
+    tracked_detections_topic: "/udder/tracked_detections"
+    udder_status_topic: "/udder/status"
+    image_topic: "/sick_yolo_debug/image"
+    base_frame: "base_link"
+    enable_vision_csv: false
+    vision_csv_path: "/tmp/vision_stability.csv"
+    vision_summary_path: "/tmp/vision_stability_summary.json"
+    vision_csv_flush_rows: 32
+    vision_tf_timeout: 0.05
+    # 仅用于诊断日志，不参与检测、滤波或控制。
+    debug_pixel_jump_threshold: 8.0
+    debug_depth_jump_threshold: 0.03
+    debug_cam_jump_threshold: 0.03
+    debug_base_jump_threshold: 0.03
+
+handeye_marker_node:
+  ros__parameters:
+    intensity_topic: "/camera_node/intensity"
+    camera_info_topic: "/camera_node/camera_info"
+    debug_image_topic: "/handeye_marker/debug_image"
+    dictionary: "DICT_4X4_50"
+    marker_id: 0
+    marker_size_m: 0.12
+    parent_frame: "sick_camera_optical_frame"
+    child_frame: "calibration_marker"
+    axis_length_m: 0.06
+
+teat_id_node:
+  ros__parameters:
+    detections_topic: "/detector_node/detections"
+    tracked_detections_topic: "/udder/tracked_detections"
+    target_class_id: "0"
+    camera_frame_override: "sick_camera_optical_frame"
+    udder_frame: "udder_frame"
+    publish_legacy_teat_tf: true
+    expected_z_camera: [0.0, 0.0, 1.0]
+    front_is_smaller_v: true
+    # 相机正对乳房时，奶牛解剖左侧位于图像右侧。
+    left_is_smaller_u: false
+    min_detection_score: 0.35
+    max_match_distance: 0.08
+    max_fit_residual: 0.02
+    two_point_timeout: 0.30
+    max_prediction_translation: 0.05
+    max_prediction_rotation_deg: 15.0
+    partial_prediction_timeout: 0.50
+    zero_point_timeout: 0.20
+    reacquire_after_failures: 5
+    reacquire_stable_frames: 5

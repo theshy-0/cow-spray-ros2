@@ -1,0 +1,7 @@
+system:
+  camera_frame: "sick_camera_optical_frame"
+  base_frame: "base_link"
+  tool_frame: "tool0"
+  raw_detections_topic: "/detector_node/detections"
+  tracked_detections_topic: "/udder/tracked_detections"
+  debug_image_topic: "/sick_yolo_debug/image"

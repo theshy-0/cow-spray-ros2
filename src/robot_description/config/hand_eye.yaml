@@ -1,0 +1,14 @@
+# eye_in_hand 是当前标定结果；eye_to_hand 仅保留历史值，使用前必须复核。
+hand_eye:
+  eye_in_hand:
+    parent_frame: "tool0"
+    child_frame: "sick_camera_optical_frame"
+    translation: [-0.018044, -0.416573, 0.003539]
+    quaternion: [0.872848, -0.136885, 0.121118, 0.452471]
+    verified: true
+  eye_to_hand:
+    parent_frame: "base_link"
+    child_frame: "sick_camera_optical_frame"
+    translation: [0.309215, -0.084293, 0.048593]
+    quaternion: [-0.405675, 0.376204, -0.574676, 0.603031]
+    verified: false

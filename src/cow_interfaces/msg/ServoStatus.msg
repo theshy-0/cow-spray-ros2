@@ -1,0 +1,10 @@
+std_msgs/Header header
+bool enabled
+bool tracking
+string state
+uint8 active_target_id
+geometry_msgs/Point tcp_position
+geometry_msgs/Point target_position
+geometry_msgs/Vector3 position_error
+float32 measurement_age
+uint32 dropped_measurements

@@ -1,0 +1,89 @@
+estun_driver:
+  ros__parameters:
+    robot_ip: "192.168.1.136"
+    local_ip: "192.168.1.10"
+    udp_port: 10086
+    controller_udp_port: 9030
+    cri_period_ms: 4
+    start_buffer: 5
+    base_frame: "base_link"
+    # 带语义ID的观测结果；预测补点不会被当成真实视觉刷新 freshness
+    tracked_detections_topic: "/udder/tracked_detections"
+    # 唯一目标输入：带时间戳和稳定ID的Topic measurement + 历史TF2转换。
+    min_target_confidence: 0.50
+    topic_tf_wait_timeout: 0.05
+    # udder_frame 作为参考系（用于推断缺失乳头），不进入动作序列
+    udder_frame: "udder_frame"
+    # 4 点序列：只做 4 个乳头（按治疗顺序）
+    target_sequence: ["teat_front_left"]
+    # 每点 base 系附加偏移（乳头点加喷洒偏移，Z 向下）
+    # 每点 base 系附加偏移（拍平 3*N；统一加 Z 上方 0.08 安全偏移避免遮挡相机，
+    # 乳头点再叠加喷洒下移 -0.05，故乳头净 Z=+0.03）
+    target_offsets: [-0.80, 0.0, -0.20]
+    dry_run: false
+    return_home: true
+    loop: false
+    # 每轮开始前通过Topic短窗口锁存四点ID。
+    # 动态目标无需静止：最近5个视觉帧至少3帧四点完整且结构一致后锁定ID
+    init_window_frames: 5
+    init_min_full_frames: 3
+    init_max_duration: 0.35
+    enable_z_pbvs: true
+    # 连续径向死区，不再在边界处硬切速度。
+    xy_deadband_m: 0.002
+    pbvs_debug_rate_hz: 10.0
+    # 眼在手上：直接在相机系计算目标相对期望位置的3D PBVS误差。
+    pbvs_control_frame: "camera"
+    desired_target_cam: [0.0, 0.0, 0.50]
+    lambda_gain_xyz: [1.0, 1.0, 0.6]
+    feedforward_gain_xyz: [0.0, 0.0, 0.0]
+    # Ruckig 三轴在线轨迹限制；先用平滑生产基线，再依据实测逐级提速。
+    vmax_xyz: [0.12, 0.12, 0.03]
+    amax_xyz: [0.8, 0.8, 0.20]
+    jmax_xyz: [1.5, 1.5, 0.50]
+    vmax_total: 0.15
+    process_noise_xyz: [0.06, 0.06, 0.05]
+    measurement_noise_xyz: [0.008, 0.008, 0.015]
+    # XY正常伺服 + Z低带宽伺服。Z使用独立死区和更低v/a/j，避免ToF噪声引起上下抖动。
+    z_control_mode: "low_bandwidth"
+    fixed_z_source: "first_target"
+    z_fixed_offset: 0.0
+    z_low_bandwidth_gain: 0.25
+    z_low_bandwidth_vmax: 0.010
+    z_low_bandwidth_amax: 0.030
+    z_low_bandwidth_jmax: 0.080
+    z_low_bandwidth_deadband: 0.005
+    # FL/RL/RR仅在XY位置和内部轨迹速度同时满足时切点；Z低带宽闭环独立运行。
+    flyby_enabled: true
+    flyby_tolerance_xy: 0.010
+    switch_speed_xy: 0.050
+    home_stay_duration: 0.20
+    # 三类到位条件分别命名，不复用旧兼容参数。
+    home_arrive_tolerance: 0.008
+    z_approach_tolerance: 0.008
+    arrive_tolerance_xy: 0.008
+    arrive_stable_duration: 0.03
+    stay_duration: 0.03
+    workspace_min: [0.5, -0.4, 0.2]
+    workspace_max: [0.8, 0.8, 0.7]
+    # base系回位也使用同一套 Ruckig 约束。
+    lambda_gain: 1.2
+    feedforward_gain: 0.30
+    vmax: 0.12
+    amax: 0.8
+    jmax: 1.5
+    # 滤波 / 超时 / 预测参数
+    process_noise: 0.02
+    measurement_noise: 0.006
+    track_timeout: 0.20
+    loss_timeout: 0.50
+    max_prediction: 0.06
+    target_a_max: 2.0
+    gate_sigma: 3.0
+    # Z低带宽闭环的偏差监测与喷洒许可
+    z_deviation_warn: 0.015
+    z_deviation_halt: 0.030
+    z_deviation_halt_duration: 0.10
+    command_error_warn: 0.020
+    command_error_halt: 0.040
+    busy_wait_margin: 0.0002

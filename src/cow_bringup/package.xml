@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>cow_bringup</name>
+  <version>0.1.0</version>
+  <description>Safe launch entry points for the cow spray system.</description>
+  <maintainer email="dev@example.com">xiaoyu</maintainer>
+  <license>MIT</license>
+
+  <depend>arm</depend>
+  <depend>camera</depend>
+  <depend>robot_description</depend>
+  <depend>teat_detection</depend>
+  <exec_depend>launch_ros</exec_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

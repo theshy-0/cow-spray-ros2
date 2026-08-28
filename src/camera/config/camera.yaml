@@ -1,0 +1,23 @@
+# SICK Visionary 3D 相机参数
+# 对应 sick_sdk_wrapper.CameraConfig 字段
+
+camera_node:
+  ros__parameters:
+    # 网络连接
+    ip: "192.168.1.30"
+    device_type: "Visionary-T Mini"
+    transport: "TCP"              
+    streaming_port: 2114
+    control_port: 0                  # 0 = 使用默认端口
+    receiver_ip: "192.168.1.10"   # UDP 模式时：本机 IP（相机数据推送目标）
+    reset_tcp_port: 2114
+    # 运行参数
+    timeout: 5.0
+    frame_timeout: 0.3
+    drop_warmup_frame: true
+    # ROS 发布
+    camera_frame: "sick_camera_optical_frame"
+    publish_rate: 0.0                # 0 = 不限速，按相机帧率发布
+    # 完整点云仅供调试；生产链路(检测只消费 depth)可关掉省点云计算
+    publish_pointcloud: false
+    points_publish_rate: 5.0         # 仅在有人订阅时生成（且在 publish_pointcloud=true 时生效）

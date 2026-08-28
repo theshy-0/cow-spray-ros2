@@ -1,0 +1,1 @@
+# SICK SDK vendor package

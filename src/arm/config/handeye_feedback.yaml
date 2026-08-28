@@ -1,0 +1,10 @@
+estun_feedback_node:
+  ros__parameters:
+    robot_ip: "192.168.1.136"
+    local_ip: "192.168.1.10"
+    udp_port: 10086
+    feedback_period_ms: 10
+    feedback_timeout: 0.30
+    connection_timeout: 5.0
+    base_frame: "base_link"
+    tool_frame: "tool0"
