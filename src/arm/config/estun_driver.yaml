@@ -42,7 +42,7 @@ estun_driver:
     # 每点 base 系附加偏移（拍平 3*N；统一加 Z 上方 0.08 安全偏移避免遮挡相机，
     # 乳头点再叠加喷洒下移 -0.05，故乳头净 Z=+0.03）
     target_offsets: [-0.80, 0.0, -0.20]
-    dry_run: false
+    dry_run: true
     return_home: true
     loop: false
     # 每轮开始前通过Topic短窗口锁存四点ID。

@@ -186,7 +186,6 @@ base_link ──动态反馈──> tool0 ──手眼标定──> sick_camera_
 ```bash
 cd ~/Desktop/workspace/1/cow_spray_ws
 source /opt/ros/humble/setup.bash
-
 # 如果依赖安装在conda环境中
 conda activate ros2_humble
 
