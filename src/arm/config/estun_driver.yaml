@@ -52,17 +52,17 @@ estun_driver:
     init_max_duration: 0.35
     enable_z_pbvs: true
     # 连续径向死区，不再在边界处硬切速度。
-    xy_deadband_m: 0.002
+    xy_deadband_m: 0.003
     pbvs_debug_rate_hz: 10.0
     # 眼在手上：直接在相机系计算目标相对期望位置的3D PBVS误差。
     pbvs_control_frame: "camera"
     desired_target_cam: [0.0, 0.0, 0.50]
-    lambda_gain_xyz: [1.2, 1.2, 0.6] #[1.0, 1.0, 0.6]
-    feedforward_gain_xyz: [0.2, 0.2, 0.0] #[0.0, 0.0, 0.0]
+    lambda_gain_xyz: 	[1.2, 1.2, 0.6] #[1.0, 1.0, 0.6]
+    feedforward_gain_xyz: [0.0, 0.0, 0.0]
     # Ruckig 三轴在线轨迹限制；先用平滑生产基线，再依据实测逐级提速。
     vmax_xyz: [0.30, 0.30, 0.06] #[0.25, 0.25, 0.05] # [0.18, 0.18, 0.04] #[0.12, 0.12, 0.03]
     amax_xyz: [1.8, 1.8, 0.35] #[1.5, 1.5, 0.30] # [1.2, 1.2, 0.25] #[0.8, 0.8, 0.20]
-    jmax_xyz: [3.0, 3.0, 0.80] #[3.0, 3.0, 0.80] #[2.5, 2.5, 0.70] #[2.0, 2.0, 0.60] #[1.5, 1.5, 0.50]
+    jmax_xyz: [2.5, 2.5, 0.70] #[3.0, 3.0, 0.80] #[2.5, 2.5, 0.70] #[2.0, 2.0, 0.60] #[1.5, 1.5, 0.50]
     vmax_total: 0.36 #0.30 #0.22 #0.15
     process_noise_xyz: [0.06, 0.06, 0.05]
     measurement_noise_xyz: [0.008, 0.008, 0.015]
@@ -78,7 +78,7 @@ estun_driver:
     # FL/RL/RR仅在XY位置和内部轨迹速度同时满足时切点；Z低带宽闭环独立运行。
     flyby_enabled: true
     flyby_tolerance_xy: 0.010
-    switch_speed_xy: 	0.050
+    switch_speed_xy: 		0.050
     home_stay_duration: 0.20
     # 三类到位条件分别命名，不复用旧兼容参数。
     home_arrive_tolerance: 0.008

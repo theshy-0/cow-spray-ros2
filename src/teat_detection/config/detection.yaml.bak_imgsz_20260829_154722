@@ -9,7 +9,7 @@ detector_node:
     target_class_id: 0
     confidence: 0.50
     iou: 0.45
-    inference_size: 192
+    inference_size: 256
     device: ""
     parent_frame: "sick_camera_optical_frame"
     child_frame: "target"
