@@ -14,6 +14,7 @@
   <depend>tf2_ros</depend>
   <depend>tf2_geometry_msgs</depend>
   <depend>vision_msgs</depend>
+  <depend>cow_interfaces</depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>python3-numpy</exec_depend>

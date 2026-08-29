@@ -4,6 +4,8 @@
 
 > 本项目会连接真实工业机械臂。首次运行、修改手眼标定、工作空间、目标偏移或速度参数后，必须先使用 `dry_run` 和低速配置验证，并确保急停可用。
 
+分模块调试和生产放行步骤见 [docs/MODULE_TEST_SOP.md](docs/MODULE_TEST_SOP.md)。
+
 ## 系统结构
 
 ![当前 ROS 2 乳头识别与机械臂视觉伺服系统结构图](docs/system_architecture.svg)
@@ -19,6 +21,7 @@
 
 ```text
 SICK 强度图 + 深度图
+        ├─ ToF牛腿分割 → 双腿内缘/间距/入场中心 → 稳定窗口 → 入场许可
         ↓ 同时间戳同步
 YOLO 乳头 bbox
         ↓ ROI 深度中位数 + 相机内参投影
@@ -42,7 +45,7 @@ ESTUN机械臂
 | `arm` | 历史TF2、目标管理、CA Kalman、3D PBVS、Ruckig、CRI及安全检查 |
 | `robot_description` | 眼在手上/眼在手外手眼标定参数和TF发布 |
 | `cow_bringup` | 相机、视觉、TF与机械臂的统一启动入口 |
-| `cow_interfaces` | 项目自定义消息定义；当前生产链仍使用已验证的 `vision_msgs` 接口 |
+| `cow_interfaces` | 项目自定义消息定义；牛腿入场使用 `EntryStatus`，乳头链继续使用 `vision_msgs` |
 
 ## 核心节点与接口
 
@@ -51,6 +54,7 @@ ESTUN机械臂
 | `/camera_node` | SICK TCP数据流 | `/camera_node/intensity`、`depth`、`camera_info`、`range_offset_mm` |
 | `/detector_node` | 强度图、深度图、相机内参 | `/detector_node/detections` |
 | `/teat_id_node` | 原始检测结果 | `/udder/tracked_detections`、`/udder/status`、`udder_frame` |
+| `/leg_entry_node` | 深度图、内参、历史TF | `/entry/status`（双腿内缘、间距、中心、速度、许可） |
 | `/sick_yolo_debug` | 图像、深度、原始/跟踪检测、状态 | `/sick_yolo_debug/image` |
 | `/hand_eye_tf` | `hand_eye.yaml` | `tool0 → sick_camera_optical_frame` 静态TF |
 | `/estun_driver` | 跟踪目标、TF2、CRI反馈 | 250 Hz CRI命令、`base_link → tool0`、状态与调试话题 |
@@ -63,7 +67,30 @@ ESTUN机械臂
 /estun_driver/action_log   到达、切点和回位事件
 /pbvs/debug                PBVS误差、期望速度、Ruckig输出和命令位置
 /sick_yolo_debug/image     带bbox、乳头ID和预测状态的调试画面
+/entry/status              牛腿入场测量、稳定性、间距与产线速度
+/entry/detection_enabled   一轮动作前启用、乳头接管后关闭牛腿检测
+/sprayer/command           逻辑喷洒命令；默认disabled并保持false
+/estun_driver/recover      故障锁存确认；不代替控制器人工复位
 ```
+
+## 牛腿入场与七秒门控
+
+`leg_entry_node` 只使用深度图下部ROI，要求检测到两个互相独立、近似竖直的连通域；单腿、粘连目标或数量异常都不会放行。节点读取两条腿的内缘深度，投影到三维并使用采集时间戳查询历史TF，随后在短窗口内验证中心位置和腿间距是否稳定。
+
+一轮动作采用明确的单向状态流：
+
+```text
+WAIT_ENTRY →（可选）LEG_PRETRACK → TEAT_WORK → RETURNING → COMPLETE
+                    任意报警/急停/碰撞 → FAULT_LATCHED
+```
+
+- `corridor_clear` 只有在 `leg_gap_min_m`/`leg_gap_max_m` 已现场标定且间距合格时才为真。
+- 入场门控同时检查机械臂状态、数据新鲜度、置信度、乳头ID锁定和剩余作业时间。
+- 乳头接管后发布 `/entry/detection_enabled=false`，本轮不再因牛腿离开画面而改变动作。
+- 超过 `cycle_time_limit_s` 会关闭喷洒许可并受控回位。
+- 可选牛腿预跟随默认关闭；必须先标定 `desired_entry_center_cam` 并低速验证。
+
+首次启用顺序：先标定 `leg_gap_min_m`、`leg_gap_max_m`、`production_axis` 和 `entry_work_window_exit_m`，使用 `dry_run` 观察 `/entry/status`，最后才将 `require_entry_gate` 改为 `true`。不要在 `leg_gap_min_m: 0.0` 时强行绕过门控。
 
 ## 视觉识别
 
@@ -218,6 +245,23 @@ ros2 topic echo /estun_driver/status
 ros2 run tf2_ros tf2_echo tool0 sick_camera_optical_frame
 ros2 run tf2_ros tf2_echo base_link sick_camera_optical_frame
 ```
+
+## 测试
+
+```bash
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+# 避免系统pytest插件版本冲突
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest \
+  src/arm/test/test_estun_driver.py \
+  src/arm/test/test_target_input.py -q
+
+colcon test --packages-select camera teat_detection arm
+colcon test-result --verbose
+```
+
+单元测试不会主动连接机械臂。不要使用 `ros2 launch ... start_arm:=true` 代替离线测试。
 
 ## 目录结构
 

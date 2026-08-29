@@ -17,6 +17,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("camera_ip", default_value="192.168.1.30"),
             DeclareLaunchArgument("debug", default_value="true"),
+            DeclareLaunchArgument("start_leg_entry", default_value="true"),
             DeclareLaunchArgument("hand_eye_mode", default_value="eye_in_hand"),
             DeclareLaunchArgument("start_arm", default_value="false"),
             DeclareLaunchArgument("dry_run", default_value="false"),
@@ -25,6 +26,7 @@ def generate_launch_description():
                 launch_arguments={
                     "camera_ip": LaunchConfiguration("camera_ip"),
                     "debug": LaunchConfiguration("debug"),
+                    "start_leg_entry": LaunchConfiguration("start_leg_entry"),
                 }.items(),
             ),
             IncludeLaunchDescription(

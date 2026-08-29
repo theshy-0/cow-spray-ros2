@@ -24,9 +24,10 @@ sick_yolo_debug:
     detections_topic: "/detector_node/detections"
     tracked_detections_topic: "/udder/tracked_detections"
     udder_status_topic: "/udder/status"
+    entry_status_topic: "/entry/status"
     image_topic: "/sick_yolo_debug/image"
     base_frame: "base_link"
-    enable_vision_csv: false
+    enable_vision_csv: true
     vision_csv_path: "/tmp/vision_stability.csv"
     vision_summary_path: "/tmp/vision_stability_summary.json"
     vision_csv_flush_rows: 32
@@ -56,7 +57,7 @@ teat_id_node:
     target_class_id: "0"
     camera_frame_override: "sick_camera_optical_frame"
     udder_frame: "udder_frame"
-    publish_legacy_teat_tf: true
+    publish_legacy_teat_tf: false
     expected_z_camera: [0.0, 0.0, 1.0]
     front_is_smaller_v: true
     # 相机正对乳房时，奶牛解剖左侧位于图像右侧。
@@ -67,7 +68,34 @@ teat_id_node:
     two_point_timeout: 0.30
     max_prediction_translation: 0.05
     max_prediction_rotation_deg: 15.0
-    partial_prediction_timeout: 0.50
-    zero_point_timeout: 0.20
     reacquire_after_failures: 5
     reacquire_stable_frames: 5
+
+leg_entry_node:
+  ros__parameters:
+    enabled: true
+    depth_topic: "/camera_node/depth"
+    camera_info_topic: "/camera_node/camera_info"
+    range_offset_topic: "/camera_node/range_offset_mm"
+    status_topic: "/entry/status"
+    enable_topic: "/entry/detection_enabled"
+    base_frame: "base_link"
+    camera_frame: "sick_camera_optical_frame"
+    tf_timeout: 0.05
+    min_depth_mm: 400.0
+    max_depth_mm: 1000.0
+    leg_row_start_ratio: 0.60
+    leg_row_end_ratio: 0.90
+    min_leg_separation_px: 30
+    min_leg_height_px: 20
+    min_leg_aspect_ratio: 0.9
+    min_leg_blob_area_px: 20
+    # 必须现场标定后设置为大于0的真实值；0会保持corridor_clear=false。
+    leg_gap_min_m: 0.0
+    leg_gap_max_m: 2.0
+    stable_window_frames: 8
+    stable_min_valid_frames: 6
+    stable_duration: 0.20
+    max_center_spread_m: 0.10
+    max_gap_spread_m: 0.05
+    production_axis: [1.0, 0.0, 0.0]

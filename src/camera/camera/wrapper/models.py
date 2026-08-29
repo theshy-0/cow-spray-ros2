@@ -20,6 +20,7 @@ class CameraConfig:
     transport: str = "TCP"
     receiver_ip: str = "192.168.101.10"
     timeout: float = 5.0
+    frame_timeout: float = 0.3
     drop_warmup_frame: bool = True
     reset_tcp_port: int = 2114
 

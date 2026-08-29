@@ -22,13 +22,17 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("camera_ip", default_value="192.168.1.30"),
             DeclareLaunchArgument("debug", default_value="true"),
+            DeclareLaunchArgument("start_leg_entry", default_value="true"),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(camera_launch),
                 launch_arguments={"ip": LaunchConfiguration("camera_ip")}.items(),
             ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(detection_launch),
-                launch_arguments={"debug": LaunchConfiguration("debug")}.items(),
+                launch_arguments={
+                    "debug": LaunchConfiguration("debug"),
+                    "start_leg_entry": LaunchConfiguration("start_leg_entry"),
+                }.items(),
             ),
         ]
     )

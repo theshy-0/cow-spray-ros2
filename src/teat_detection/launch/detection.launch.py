@@ -17,6 +17,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument("debug", default_value="true"),
+            DeclareLaunchArgument("start_leg_entry", default_value="true"),
             Node(
                 package="teat_detection",
                 executable="detector_node",
@@ -30,6 +31,14 @@ def generate_launch_description():
                 name="teat_id_node",
                 parameters=[config],
                 output="screen",
+            ),
+            Node(
+                package="teat_detection",
+                executable="leg_entry_node",
+                name="leg_entry_node",
+                parameters=[config],
+                output="screen",
+                condition=IfCondition(LaunchConfiguration("start_leg_entry")),
             ),
             Node(
                 package="teat_detection",

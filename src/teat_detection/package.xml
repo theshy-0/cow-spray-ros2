@@ -8,6 +8,8 @@
   <license>MIT</license>
 
   <depend>ament_index_python</depend>
+  <depend>camera</depend>
+  <depend>cow_interfaces</depend>
   <depend>geometry_msgs</depend>
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>

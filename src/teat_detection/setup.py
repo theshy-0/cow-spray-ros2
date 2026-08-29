@@ -32,6 +32,7 @@ setup(
             'detector_node = teat_detection.detector_node:main',
             'debug_node = teat_detection.debug_node:main',
             'teat_id_node = teat_detection.teat_id_node:main',
+            'leg_entry_node = teat_detection.leg_entry_node:main',
             'handeye_marker_node = teat_detection.handeye_marker_node:main',
         ],
     },

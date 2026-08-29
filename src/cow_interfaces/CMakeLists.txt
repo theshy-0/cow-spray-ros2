@@ -10,6 +10,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/TeatDetection.msg"
   "msg/TeatDetectionArray.msg"
   "msg/ServoStatus.msg"
+  "msg/EntryStatus.msg"
   DEPENDENCIES geometry_msgs std_msgs
 )
 

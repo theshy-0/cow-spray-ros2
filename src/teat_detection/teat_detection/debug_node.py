@@ -8,7 +8,9 @@ import cv2
 import numpy as np
 import rclpy
 import tf2_ros
+from cow_interfaces.msg import EntryStatus
 from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
@@ -36,6 +38,7 @@ class DetectionDebugNode(Node):
         self.declare_parameter("detections_topic", "/detector_node/detections")
         self.declare_parameter("tracked_detections_topic", "/udder/tracked_detections")
         self.declare_parameter("udder_status_topic", "/udder/status")
+        self.declare_parameter("entry_status_topic", "/entry/status")
         self.declare_parameter("image_topic", "/sick_yolo_debug/image")
         self.declare_parameter("base_frame", "base_link")
         self.declare_parameter("enable_vision_csv", False)
@@ -50,12 +53,10 @@ class DetectionDebugNode(Node):
         self.declare_parameter("debug_cam_jump_threshold", 0.03)
         self.declare_parameter("debug_base_jump_threshold", 0.03)
         self._images = OrderedDict()
-        self._dbg_call = 0
-        self._dbg_pub = 0
-        self._dbg_none = 0
         self._depths = OrderedDict()
         self._tf_cache = OrderedDict()
         self._prediction_label = ""
+        self._entry_status = None
         self._tracked_topic = str(
             self.get_parameter("tracked_detections_topic").value
         )
@@ -110,6 +111,12 @@ class DetectionDebugNode(Node):
             String,
             str(self.get_parameter("udder_status_topic").value),
             self._on_udder_status,
+            1,
+        )
+        self.create_subscription(
+            EntryStatus,
+            str(self.get_parameter("entry_status_topic").value),
+            self._on_entry_status,
             1,
         )
 
@@ -315,22 +322,40 @@ class DetectionDebugNode(Node):
                 source="LOST",
             )
 
+    def _on_entry_status(self, msg: EntryStatus) -> None:
+        self._entry_status = msg
+
+    def _draw_entry_overlay(self, image: np.ndarray) -> None:
+        status = self._entry_status
+        if status is None:
+            return
+        pixels = (
+            (int(status.left_inner_u), int(status.left_inner_v)),
+            (int(status.right_inner_u), int(status.right_inner_v)),
+        )
+        valid_pixels = all(x >= 0 and y >= 0 for x, y in pixels)
+        color = (0, 210, 0) if status.corridor_clear and status.stable else (0, 0, 255)
+        if valid_pixels:
+            cv2.line(image, pixels[0], pixels[1], color, 2, cv2.LINE_AA)
+            for point in pixels:
+                cv2.circle(image, point, 5, color, -1, cv2.LINE_AA)
+        label = (
+            f"ENTRY id={status.cow_track_id} gap={status.gap_m:.3f}m "
+            f"v={status.line_speed_mps:.3f}m/s {status.reason}"
+        )
+        cv2.putText(
+            image, label, (6, 42), cv2.FONT_HERSHEY_SIMPLEX,
+            0.38, color, 1, cv2.LINE_AA,
+        )
+
     def _on_detections(self, msg: Detection2DArray) -> None:
-        self._dbg_call += 1
-        if self._dbg_call % 40 == 0:
-            self.get_logger().warn(
-                f"[CNT] call={self._dbg_call} pub={self._dbg_pub} none={self._dbg_none} cache={len(self._images)}")
         self._record_measured(msg)
         item = self._images.pop(self._key(msg.header.stamp), None)
-        if item is None and self._images:
-            # BEST_EFFORT + depth=1 下，debug 未必收到与检测完全同步的 intensity 帧；
-            # 回退到最新缓存帧，保证调试画面连续（图像与检测框可能有~1帧偏差，可接受）
-            _, item = self._images.popitem(last=True)
         if item is None or self.image_pub.get_subscription_count() == 0:
-            self._dbg_none += 1
             return
         header, intensity = item
         image = intensity_to_bgr(intensity, *intensity.shape)
+        self._draw_entry_overlay(image)
         for detection in msg.detections:
             bbox = detection.bbox
             x1 = int(round(bbox.center.position.x - bbox.size_x * 0.5))
@@ -391,7 +416,6 @@ class DetectionDebugNode(Node):
         output.is_bigendian = False
         output.step = output.width * 3
         output.data = np.ascontiguousarray(image).tobytes()
-        self._dbg_pub += 1
         self.image_pub.publish(output)
 
     def destroy_node(self):
@@ -408,11 +432,14 @@ class DetectionDebugNode(Node):
 def main(args=None) -> None:
     rclpy.init(args=args)
     node = DetectionDebugNode()
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

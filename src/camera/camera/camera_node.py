@@ -70,6 +70,7 @@ class SickCameraNode(Node):
         self.publish_rate = float(self.get_parameter('publish_rate').value)
         self.points_publish_rate = float(self.get_parameter('points_publish_rate').value)
         self.publish_pointcloud = bool(self.get_parameter('publish_pointcloud').value)
+        self.frame_timeout = float(self.get_parameter('frame_timeout').value)
 
         # ---------- 构建相机配置 ----------
         config = CameraConfig(
@@ -159,14 +160,14 @@ class SickCameraNode(Node):
     # ============================================================
     # 每帧回调
     # ============================================================
-    def _on_tick(self, config: CameraConfig) -> None:
+    def _on_tick(self) -> None:
         if not self._started or self._camera is None:
             # 空跑模式：发布空帧占位
             self._publish_empty_frames()
             return
 
         try:
-            frame = self._camera.read_frame(timeout=config.frame_timeout)
+            frame = self._camera.read_frame(timeout=self.frame_timeout)
         except (SickCameraFrameError, SickCameraError) as exc:
             self.get_logger().warn(f'读取相机帧失败: {exc}')
             return

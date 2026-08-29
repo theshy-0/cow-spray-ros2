@@ -19,11 +19,15 @@ from tf2_ros import TransformBroadcaster, TransformListener
 from rclpy.node import Node
 from rclpy.time import Time
 from geometry_msgs.msg import TransformStamped
-from std_msgs.msg import Float64MultiArray, String
-from std_srvs.srv import SetBool
+from cow_interfaces.msg import EntryStatus
+from std_msgs.msg import Bool, Float64MultiArray, String
+from std_srvs.srv import SetBool, Trigger
 from vision_msgs.msg import Detection2DArray
 from codroid import CodroidClient, CriRealtimeDispatcher, TrajectorySpace, CriFilterType
 from .motion_limiter import RuckigVelocityLimiter
+from .entry_gate import AdmissionSnapshot, EntryGate
+from .recovery import RecoveryManager, RecoveryState
+from .sprayer import evaluate_spray
 from .tool import convert_tcp_pose
 from .target_input import TopicTargetAdapter
 
@@ -344,6 +348,9 @@ class EstunDriver(Node):
         self.create_subscription(
             Detection2DArray, self.tracked_detections_topic,
             self._vision_stamp_cb, 1)
+        self.create_subscription(
+            EntryStatus, self.entry_status_topic,
+            self._entry_status_cb, 1)
         self.stop_event = threading.Event()
 
         self.init_robot()
@@ -353,6 +360,7 @@ class EstunDriver(Node):
         self._init_sequence_state()
         # 安全使能：默认不跟随，调用 /estun_driver/enable 后才开始序列
         self.create_service(SetBool, '/estun_driver/enable', self._enable_cb)
+        self.create_service(Trigger, '/estun_driver/recover', self._recover_cb)
         # 50Hz只处理Topic重试/状态推进；250Hz只留给CRI线程。
         self.create_timer(1.0 / 50.0, self.update_control_target)
         self.start_cri()
@@ -365,6 +373,24 @@ class EstunDriver(Node):
         self.declare_parameter('cri_period_ms', 4)
         self.declare_parameter('start_buffer', 5)
         self.declare_parameter('base_frame', 'base_link')
+        self.declare_parameter('require_entry_gate', False)
+        self.declare_parameter('entry_status_topic', '/entry/status')
+        self.declare_parameter('entry_detection_enable_topic', '/entry/detection_enabled')
+        self.declare_parameter('entry_data_timeout', 0.20)
+        self.declare_parameter('entry_min_confidence', 0.70)
+        self.declare_parameter('entry_production_axis', [1.0, 0.0, 0.0])
+        self.declare_parameter('entry_work_window_exit_m', 1.50)
+        self.declare_parameter('estimated_cycle_time_s', 6.0)
+        self.declare_parameter('cycle_time_limit_s', 7.0)
+        self.declare_parameter('cycle_time_reserve_s', 0.7)
+        self.declare_parameter('entry_minimum_line_speed_mps', 0.01)
+        self.declare_parameter('entry_pretrack_enabled', False)
+        self.declare_parameter('entry_camera_frame', 'sick_camera_optical_frame')
+        self.declare_parameter('desired_entry_center_cam', [0.0, 0.0, 0.80])
+        self.declare_parameter('entry_handoff_tolerance_xy', 0.03)
+        self.declare_parameter('entry_pretrack_speed_scale', 0.30)
+        self.declare_parameter('recovery_enabled', False)
+        self.declare_parameter('sprayer_mode', 'disabled')
         self.declare_parameter(
             'tracked_detections_topic', '/udder/tracked_detections')
         self.declare_parameter('min_target_confidence', 0.50)
@@ -443,6 +469,44 @@ class EstunDriver(Node):
         self.dt = float(self.get_parameter('cri_period_ms').value) / 1000.0
         self.start_buffer = int(self.get_parameter('start_buffer').value)
         self.base = str(self.get_parameter('base_frame').value)
+        self.require_entry_gate = bool(
+            self.get_parameter('require_entry_gate').value)
+        self.entry_status_topic = str(
+            self.get_parameter('entry_status_topic').value)
+        self.entry_detection_enable_topic = str(
+            self.get_parameter('entry_detection_enable_topic').value)
+        self.cycle_time_limit_s = float(
+            self.get_parameter('cycle_time_limit_s').value)
+        self.entry_pretrack_enabled = bool(
+            self.get_parameter('entry_pretrack_enabled').value)
+        self.entry_camera_frame = str(
+            self.get_parameter('entry_camera_frame').value)
+        self.desired_entry_center_cam = _vec3(
+            self.get_parameter('desired_entry_center_cam').value)
+        self.entry_handoff_tolerance_xy = float(
+            self.get_parameter('entry_handoff_tolerance_xy').value)
+        self.entry_pretrack_speed_scale = float(
+            self.get_parameter('entry_pretrack_speed_scale').value)
+        if not 0.0 < self.entry_pretrack_speed_scale <= 1.0:
+            raise ValueError('entry_pretrack_speed_scale 必须在 (0, 1]')
+        self.recovery_enabled = bool(
+            self.get_parameter('recovery_enabled').value)
+        self.sprayer_mode = str(self.get_parameter('sprayer_mode').value)
+        if self.sprayer_mode not in ('disabled', 'digital', 'analog'):
+            raise ValueError('sprayer_mode 必须是 disabled、digital 或 analog')
+        self.entry_gate = EntryGate(
+            data_timeout=float(self.get_parameter('entry_data_timeout').value),
+            min_confidence=float(self.get_parameter('entry_min_confidence').value),
+            production_axis=self.get_parameter('entry_production_axis').value,
+            work_window_exit_m=float(
+                self.get_parameter('entry_work_window_exit_m').value),
+            estimated_cycle_time_s=float(
+                self.get_parameter('estimated_cycle_time_s').value),
+            cycle_reserve_s=float(
+                self.get_parameter('cycle_time_reserve_s').value),
+            minimum_line_speed_mps=float(
+                self.get_parameter('entry_minimum_line_speed_mps').value),
+        )
         self.tracked_detections_topic = str(
             self.get_parameter('tracked_detections_topic').value)
         self.min_target_confidence = float(
@@ -542,6 +606,7 @@ class EstunDriver(Node):
             raise ValueError('pbvs_control_frame 必须是 base 或 camera')
         self.desired_target_cam = _vec3(
             self.get_parameter('desired_target_cam').value)
+        self.active_desired_target_cam = list(self.desired_target_cam)
         self.lambda_gain_xyz = _vec3(
             self.get_parameter('lambda_gain_xyz').value)
         self.feedforward_xyz = _vec3(
@@ -620,9 +685,27 @@ class EstunDriver(Node):
         self.status_pub = self.create_publisher(String, '/estun_driver/status', 1)
         self.action_pub = self.create_publisher(String, '/estun_driver/action_log', 1)
         self.pbvs_debug_pub = self.create_publisher(String, '/pbvs/debug', 1)
+        self.entry_detection_pub = self.create_publisher(
+            Bool, self.entry_detection_enable_topic, 1)
+        # Logical fail-closed command. A hardware adapter may subscribe only
+        # after its electrical type and safe state have been verified.
+        self.sprayer_command_pub = self.create_publisher(
+            Bool, '/sprayer/command', 1)
         self.create_timer(0.2, self.publish_status)  # 5Hz 状态
         self.create_timer(1.0 / self.pbvs_debug_rate_hz, self.publish_pbvs_debug)
         self.enabled = False
+        self.flow_state = 'IDLE'
+        self.entry_status = None
+        self.entry_receive_mono = None
+        self.entry_decision = None
+        self.cycle_started_mono = None
+        self.cycle_timeout_triggered = False
+        self.recovery = RecoveryManager()
+        self.spray_state = evaluate_spray(
+            requested=False, permitted=False,
+            in_work_state=False, faulted=False)
+        self.sprayer_output_active = False
+        self.sprayer_output_reason = 'HARDWARE_DISABLED'
         self.target_lock = threading.Lock()
         self.target_pos = [None, None, None]
         self.target_v = [0.0, 0.0, 0.0]
@@ -739,6 +822,7 @@ class EstunDriver(Node):
                    for i, v in enumerate(data.tcp_pose[:3])]
         state = {
             "enabled": self.enabled,
+            "flow_state": self.flow_state,
             "dry_run": self.dry_run,
             "seq_index": self.seq_index,
             "current_point": "home" if self.current_is_home else self.current_point,
@@ -760,6 +844,21 @@ class EstunDriver(Node):
             "z_error": self.z_error,
             "z_soft_halt": self.z_soft_halt,
             "spray_allowed": self.spray_allowed,
+            "spray_actual": self.spray_state.actual,
+            "spray_reason": self.spray_state.reason,
+            "sprayer_output_active": self.sprayer_output_active,
+            "sprayer_output_reason": self.sprayer_output_reason,
+            "entry_decision": (
+                self.entry_decision.reason if self.entry_decision else None),
+            "entry_available_time_s": (
+                self.entry_decision.available_time_s
+                if self.entry_decision
+                and math.isfinite(self.entry_decision.available_time_s)
+                else None),
+            "cycle_elapsed_s": (
+                time.monotonic() - self.cycle_started_mono
+                if self.cycle_started_mono is not None else None),
+            "fault_state": self.recovery.state.name,
             "command_error_xy": self.command_error_xy,
             "command_error_z": self.command_error_z,
             "command_velocity_scale": self.command_velocity_scale,
@@ -768,6 +867,144 @@ class EstunDriver(Node):
             "z_stats": self.z_stats.summary(),
         }
         self.status_pub.publish(String(data=json.dumps(state)))
+        self._publish_sprayer_command()
+
+    def _set_entry_detection(self, enabled):
+        self.entry_detection_pub.publish(Bool(data=bool(enabled)))
+
+    def _entry_status_cb(self, message):
+        self.entry_status = message
+        self.entry_receive_mono = time.monotonic()
+        if not (self.enabled and self.flow_state == 'LEG_PRETRACK'
+                and message.valid):
+            return
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                self.base, self.entry_camera_frame,
+                Time.from_msg(message.header.stamp))
+            self.R_base_camera = _quat_to_matrix(transform.transform.rotation)
+        except tf2_ros.TransformException:
+            return
+        point = message.entry_center_camera
+        stamp = Time.from_msg(message.header.stamp).nanoseconds * 1e-9
+        self._accept_target_measurement(
+            [point.x, point.y, point.z], stamp,
+            receive_mono=self.entry_receive_mono)
+
+    def _entry_admission(self, *, require_targets):
+        message = self.entry_status
+        if message is None:
+            return None
+        stamp = Time.from_msg(message.header.stamp).nanoseconds * 1e-9
+        now = self.get_clock().now().nanoseconds * 1e-9
+        data = self.robot.CriData
+        status = getattr(data, 'status', None) if data is not None else None
+        robot_ready = bool(
+            data is not None
+            and not bool(getattr(status, 'is_emergency_stop', False))
+            and not bool(getattr(status, 'has_alarm', False))
+            and not bool(getattr(status, 'collision_stop', False))
+            and not bool(getattr(status, 'is_disabled', False)))
+        snapshot = AdmissionSnapshot(
+            now=now,
+            measurement_stamp=stamp,
+            valid=bool(message.valid),
+            stable=bool(message.stable),
+            corridor_clear=bool(message.corridor_clear),
+            confidence=float(message.confidence),
+            entry_center_base=(message.entry_center.x,
+                               message.entry_center.y,
+                               message.entry_center.z),
+            line_speed_mps=float(message.line_speed_mps),
+            robot_ready=robot_ready,
+            targets_locked=(len(self._cycle_local_targets)
+                            == len(self.sequence)),
+        )
+        self.entry_decision = self.entry_gate.evaluate(
+            snapshot, require_targets=require_targets)
+        return self.entry_decision
+
+    def _begin_entry_pretrack(self):
+        message = self.entry_status
+        if message is None or not message.valid:
+            return False
+        self.flow_state = 'LEG_PRETRACK'
+        self.seq_phase = 'entry_track'
+        self.current_point = 'leg_entry_center'
+        self.current_is_home = False
+        self.active_desired_target_cam = list(self.desired_entry_center_cam)
+        self.filters = EstunDriver._new_target_filters(self)
+        self.target_pos = [None, None, None]
+        self.target_v = [0.0, 0.0, 0.0]
+        self.target_a = [0.0, 0.0, 0.0]
+        self.target_update_time = None
+        self._entry_status_cb(message)
+        self.get_logger().info('牛腿入场通过，开始低速预跟随入场中心')
+        self._log_action('entry_pretrack_start')
+        return self.target_pos[0] is not None
+
+    def _entry_pretrack_ready(self):
+        decision = self._entry_admission(require_targets=True)
+        if decision is None or not decision.allowed:
+            return False
+        if self.dry_run:
+            return True
+        if self.target_pos[0] is None:
+            return False
+        error_xy = math.hypot(
+            self.target_pos[0] - self.active_desired_target_cam[0],
+            self.target_pos[1] - self.active_desired_target_cam[1])
+        return error_xy <= self.entry_handoff_tolerance_xy
+
+    def _handoff_to_teats(self):
+        self.active_desired_target_cam = list(self.desired_target_cam)
+        self.flow_state = 'TEAT_WORK'
+        self.seq_phase = 'waiting'
+        self.current_point = self.udder_frame
+        self.cycle_started_mono = time.monotonic()
+        self.z_stats.reset()
+        self.z_halt_since = None
+        self.z_soft_halt = False
+        self._set_entry_detection(False)
+        self.get_logger().info('牛腿预跟随完成；锁定牛腿检测并切换乳头动作')
+        self._log_action('entry_to_teat_handoff')
+
+    def _publish_sprayer_command(self):
+        requested = bool(self.enabled and self.seq_phase == 'staying')
+        permitted = bool(self.spray_allowed)
+        faulted = self.recovery.state is not RecoveryState.IDLE
+        self.spray_state = evaluate_spray(
+            requested=requested,
+            permitted=permitted,
+            in_work_state=(self.flow_state == 'TEAT_WORK'),
+            faulted=faulted,
+        )
+        # Until the hardware adapter is selected, disabled means physically off.
+        self.sprayer_output_active = bool(
+            self.spray_state.actual and self.sprayer_mode == 'digital')
+        if self.sprayer_mode == 'disabled':
+            self.sprayer_output_reason = 'HARDWARE_DISABLED'
+        elif self.sprayer_mode == 'analog':
+            self.sprayer_output_reason = 'ANALOG_ADAPTER_REQUIRED'
+        else:
+            self.sprayer_output_reason = self.spray_state.reason
+        self.sprayer_command_pub.publish(
+            Bool(data=self.sprayer_output_active))
+
+    def _recover_cb(self, request, response):
+        status = getattr(getattr(self.robot, 'CriData', None), 'status', None)
+        accepted, reason = self.recovery.request(
+            emergency_active=bool(
+                getattr(status, 'is_emergency_stop', False)),
+            recovery_enabled=self.recovery_enabled,
+        )
+        # This service only releases the software latch. Controller reset and
+        # retreat require a verified, installation-specific recovery path.
+        response.success = False
+        response.message = (
+            'software latch acknowledged; manual controller reset and safe '
+            'return are still required' if accepted else reason)
+        return response
 
     def _enable_cb(self, request, response):
         if request.data and not self.enabled:
@@ -790,10 +1027,19 @@ class EstunDriver(Node):
             self._capture_home()
             self.seq_phase = "waiting"
             self.current_point = self.udder_frame
-            self.get_logger().info('estun_driver 已使能，等待检测到目标后开始动作')
+            self.flow_state = ('WAIT_ENTRY' if self.require_entry_gate
+                               else 'TEAT_WORK')
+            self._set_entry_detection(self.require_entry_gate)
+            self.get_logger().info(
+                'estun_driver 已使能，等待牛腿入场和乳头ID锁定'
+                if self.require_entry_gate else
+                'estun_driver 已使能，等待检测到目标后开始动作')
         elif not request.data:
             self.enabled = False
             self._clear_cycle_targets()
+            self.flow_state = 'IDLE'
+            self._set_entry_detection(True)
+            self.sprayer_command_pub.publish(Bool(data=False))
             self.get_logger().info('estun_driver 已禁用，停止跟随')
         response.success = True
         response.message = 'enabled' if self.enabled else 'disabled'
@@ -828,13 +1074,17 @@ class EstunDriver(Node):
         self.command_velocity_scale = 1.0
         self.command_soft_halt = False
         self.workspace_halt = False
+        self.active_desired_target_cam = list(self.desired_target_cam)
+        self.entry_decision = None
+        self.cycle_started_mono = None
+        self.cycle_timeout_triggered = False
 
     def _record_z_measurement(self, z_target, now):
         if self.current_is_home:
             return
         self.z_target = float(z_target)
         if getattr(self, 'pbvs_control_frame', 'base') == 'camera':
-            z_reference = self.desired_target_cam[2]
+            z_reference = self.active_desired_target_cam[2]
         elif self.z_control_mode == 'fixed':
             if self.fixed_motion_z is None:
                 return
@@ -937,7 +1187,9 @@ class EstunDriver(Node):
                     'confidence': frame.confidences[name],
                 }
 
-        if self.enabled and self.seq_phase == 'waiting':
+        if (self.enabled and self.flow_state in
+                ('WAIT_ENTRY', 'LEG_PRETRACK', 'TEAT_WORK')
+                and not self._cycle_base_targets):
             observation = None
             if set(self.sequence).issubset(frame.base_points):
                 observation = (frame.camera_points, frame.base_points)
@@ -985,6 +1237,8 @@ class EstunDriver(Node):
             self.get_logger().info('无起始位置记录，直接完成')
             return
         self._publish_z_summary()
+        self.flow_state = 'RETURNING'
+        self.sprayer_command_pub.publish(Bool(data=False))
         self.current_is_home = True
         self.seq_phase = "track"
         self.phase_since = 0.0
@@ -1069,13 +1323,67 @@ class EstunDriver(Node):
         if not self.enabled:
             return
         self._retry_pending_topic_message()
+        if self.flow_state == 'LEG_PRETRACK':
+            if self._entry_pretrack_ready():
+                self._handoff_to_teats()
+            else:
+                return
+        if (self.flow_state == 'TEAT_WORK'
+                and self.cycle_started_mono is not None
+                and not self.current_is_home
+                and time.monotonic() - self.cycle_started_mono
+                > self.cycle_time_limit_s):
+            if not self.cycle_timeout_triggered:
+                self.cycle_timeout_triggered = True
+                self.get_logger().error(
+                    f'动作超过 {self.cycle_time_limit_s:.2f}s，停止喷洒并受控回位')
+                self._log_action('cycle_timeout')
+                self.sprayer_command_pub.publish(Bool(data=False))
+                if self.return_home:
+                    self._switch_to_home()
+                else:
+                    self.enabled = False
+                    self.seq_phase = 'done'
+            return
         if self.seq_phase == 'waiting':
+            if (self.require_entry_gate and self.flow_state == 'WAIT_ENTRY'
+                    and self.entry_pretrack_enabled):
+                decision = self._entry_admission(require_targets=False)
+                if decision is None or not decision.allowed:
+                    reason = 'NO_ENTRY_STATUS' if decision is None else decision.reason
+                    self.get_logger().warning(
+                        f'等待牛腿预跟随条件: {reason}',
+                        throttle_duration_sec=1.0)
+                    return
+                if not self._begin_entry_pretrack():
+                    self.get_logger().warning(
+                        '牛腿中心历史TF不可用，暂不预跟随',
+                        throttle_duration_sec=1.0)
+                return
             if len(self._cycle_base_targets) != len(self.sequence):
                 self.get_logger().warning(
                     '等待Topic短时四点初始化完成',
                     throttle_duration_sec=1.0)
                 return
+            if self.require_entry_gate and self.flow_state == 'WAIT_ENTRY':
+                decision = self._entry_admission(require_targets=True)
+                if decision is None or not decision.allowed:
+                    reason = 'NO_ENTRY_STATUS' if decision is None else decision.reason
+                    self.get_logger().warning(
+                        f'等待安全入场: {reason}', throttle_duration_sec=1.0)
+                    return
+                # This is the irreversible perception handoff for one cycle:
+                # stop leg detection, freeze admission, then execute four teats.
+                self.flow_state = 'TEAT_WORK'
+                self.cycle_started_mono = time.monotonic()
+                self._set_entry_detection(False)
+                self.get_logger().info(
+                    f'入场许可通过，可用时间 {decision.available_time_s:.2f}s；'
+                    '停止牛腿检测并切换乳头动作')
+                self._log_action('entry_admitted')
             if not self.enable_z_pbvs or self.z_control_mode == 'low_bandwidth':
+                if self.cycle_started_mono is None:
+                    self.cycle_started_mono = time.monotonic()
                 self._switch_target(0)
                 return
             if not self._select_fixed_motion_z():
@@ -1200,6 +1508,11 @@ class EstunDriver(Node):
         ) if status is not None and bool(getattr(status, attr, False))), None)
         if stop_reason is not None:
             self.enabled = False
+            self.flow_state = 'FAULT_LATCHED'
+            self.recovery.latch(
+                stop_reason, robot_pos,
+                emergency=(stop_reason == '急停'))
+            self.spray_allowed = False
             self.pos_cmd = robot_pos[:]
             self.v_cmd = [0.0, 0.0, 0.0]
             self.a_cmd = [0.0, 0.0, 0.0]
@@ -1277,7 +1590,7 @@ class EstunDriver(Node):
                 raw_pbvs_velocity_camera, desired_velocity = (
                     _compute_camera_pbvs_velocity(
                         target_pos, target_v, target_a,
-                        self.desired_target_cam, self.R_base_camera,
+                        self.active_desired_target_cam, self.R_base_camera,
                         prediction_horizon, self.lambda_gain_xyz,
                         self.feedforward_xyz, self.vmax_xyz, fade))
                 if not self.enable_z_pbvs:
@@ -1285,8 +1598,8 @@ class EstunDriver(Node):
                     desired_velocity = (self.R_base_camera
                                         @ np.asarray(raw_pbvs_velocity_camera)).tolist()
                 error_xy = math.hypot(
-                    target_pos[0] - self.desired_target_cam[0],
-                    target_pos[1] - self.desired_target_cam[1])
+                    target_pos[0] - self.active_desired_target_cam[0],
+                    target_pos[1] - self.active_desired_target_cam[1])
                 inside_xy_deadband = error_xy <= self.xy_deadband_m
                 deadband_scale = _radial_deadband_scale(
                     error_xy, self.xy_deadband_m)
@@ -1328,7 +1641,7 @@ class EstunDriver(Node):
         if (not self.current_is_home and target_pos[0] is not None
                 and self.z_control_mode == 'low_bandwidth'):
             self.z_target = target_pos[2]
-            self.z_error = (target_pos[2] - self.desired_target_cam[2]
+            self.z_error = (target_pos[2] - self.active_desired_target_cam[2]
                             if getattr(self, 'pbvs_control_frame', 'base') == 'camera'
                             else target_pos[2] - robot_pos[2])
 
@@ -1336,8 +1649,8 @@ class EstunDriver(Node):
                 and self.z_error is not None):
             if getattr(self, 'pbvs_control_frame', 'base') == 'camera':
                 err_xy = math.hypot(
-                    target_pos[0] - self.desired_target_cam[0],
-                    target_pos[1] - self.desired_target_cam[1])
+                    target_pos[0] - self.active_desired_target_cam[0],
+                    target_pos[1] - self.active_desired_target_cam[1])
             else:
                 err_xy = math.hypot(
                     target_pos[0] - robot_pos[0],
@@ -1374,6 +1687,11 @@ class EstunDriver(Node):
                     (self.z_low_amax if low_bandwidth_z else self.amax))
             jmax = (self.jmax_xyz[i] if camera_tracking else
                     (self.z_low_jmax if low_bandwidth_z else self.jmax))
+            if self.flow_state == 'LEG_PRETRACK':
+                vmax *= self.entry_pretrack_speed_scale
+                amax *= self.entry_pretrack_speed_scale
+                jmax *= self.entry_pretrack_speed_scale
+                desired_velocity[i] *= self.entry_pretrack_speed_scale
             desired_velocity[i] = _clamp(desired_velocity[i], -vmax, vmax)
             max_velocity.append(vmax)
             max_acceleration.append(amax)
@@ -1441,7 +1759,7 @@ class EstunDriver(Node):
 
         debug_control_frame = ('base' if self.current_is_home else
                                getattr(self, 'pbvs_control_frame', 'base'))
-        debug_reference = (self.desired_target_cam
+        debug_reference = (self.active_desired_target_cam
                            if debug_control_frame == 'camera' else robot_pos)
         target_error = [
             (target_pos[i] - debug_reference[i])
@@ -1508,14 +1826,20 @@ class EstunDriver(Node):
                         self.current_is_home = False
                         self.seq_phase = "waiting"
                         self.current_point = self.udder_frame
+                        self.flow_state = ('WAIT_ENTRY' if self.require_entry_gate
+                                           else 'TEAT_WORK')
+                        self.cycle_started_mono = None
+                        self._set_entry_detection(self.require_entry_gate)
                         self.get_logger().info('循环：回到起点，等待检测到目标后开始下一轮')
                         self._log_action("loop")
                     else:
                         self.seq_phase = "done"
+                        self.flow_state = 'COMPLETE'
+                        self._set_entry_detection(True)
                         self.get_logger().info('动作完成，已回到起始位置')
                         self._log_action("done")
             return
-        reference_xy = (self.desired_target_cam[:2]
+        reference_xy = (self.active_desired_target_cam[:2]
                         if getattr(self, 'pbvs_control_frame', 'base') == 'camera'
                         else robot_pos[:2])
         err = math.hypot(

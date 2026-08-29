@@ -13,6 +13,7 @@ camera_node:
     reset_tcp_port: 2114
     # 运行参数
     timeout: 5.0
+    # 单帧等待上限；应略大于相机帧周期，避免2秒阻塞ROS回调。
     frame_timeout: 0.3
     drop_warmup_frame: true
     # ROS 发布

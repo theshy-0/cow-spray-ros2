@@ -7,6 +7,28 @@ estun_driver:
     cri_period_ms: 4
     start_buffer: 5
     base_frame: "base_link"
+    # 入场门控首次部署保持 false；完成牛腿间距/产线方向/工作窗口标定后再开启。
+    require_entry_gate: false
+    entry_status_topic: "/entry/status"
+    entry_detection_enable_topic: "/entry/detection_enabled"
+    entry_data_timeout: 0.20
+    entry_min_confidence: 0.70
+    entry_production_axis: [1.0, 0.0, 0.0]
+    entry_work_window_exit_m: 1.50
+    estimated_cycle_time_s: 6.0
+    cycle_time_limit_s: 7.0
+    cycle_time_reserve_s: 0.7
+    entry_minimum_line_speed_mps: 0.01
+    # 可选牛腿中心预跟随。期望相机位置未现场验证前保持 false。
+    entry_pretrack_enabled: false
+    entry_camera_frame: "sick_camera_optical_frame"
+    desired_entry_center_cam: [0.0, 0.0, 0.80]
+    entry_handoff_tolerance_xy: 0.03
+    entry_pretrack_speed_scale: 0.30
+    # 碰撞仅锁存并停止；未验证安全撤退路径前禁止自动恢复。
+    recovery_enabled: false
+    # 未确认喷头电气类型前保持 disabled，/sprayer/command 永远为 false。
+    sprayer_mode: "disabled"
     # 带语义ID的观测结果；预测补点不会被当成真实视觉刷新 freshness
     tracked_detections_topic: "/udder/tracked_detections"
     # 唯一目标输入：带时间戳和稳定ID的Topic measurement + 历史TF2转换。
@@ -15,11 +37,11 @@ estun_driver:
     # udder_frame 作为参考系（用于推断缺失乳头），不进入动作序列
     udder_frame: "udder_frame"
     # 4 点序列：只做 4 个乳头（按治疗顺序）
-    target_sequence: ["teat_front_left", "teat_rear_left", "teat_rear_right", "teat_front_right"]
+    target_sequence: ["teat_front_left"]
     # 每点 base 系附加偏移（乳头点加喷洒偏移，Z 向下）
     # 每点 base 系附加偏移（拍平 3*N；统一加 Z 上方 0.08 安全偏移避免遮挡相机，
     # 乳头点再叠加喷洒下移 -0.05，故乳头净 Z=+0.03）
-    target_offsets: [-0.80, 0.0, -0.40, -0.80, 0.0, -0.40, -0.80, 0.0, -0.40, -0.80, 0.0, -0.40]
+    target_offsets: [-0.80, 0.0, -0.20]
     dry_run: false
     return_home: true
     loop: false
