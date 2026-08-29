@@ -132,7 +132,7 @@ ros2 launch cow_bringup bringup.launch.py start_arm:=false
 ```bash
 ros2 topic hz /entry/status
 ros2 topic echo /entry/status
-ros2 run rqt_image_view rqt_image_view /sick_yolo_debug/image
+ros2 run rqt_image_view rqt_image_view /leg_entry/debug_image
 ```
 
 分场景验证：
@@ -164,7 +164,7 @@ leg_gap_max_m: <正常上限，保留安全裕量>
 ros2 topic hz /detector_node/detections
 ros2 topic hz /udder/tracked_detections
 ros2 topic echo /udder/status
-ros2 run rqt_image_view rqt_image_view /sick_yolo_debug/image
+ros2 run rqt_image_view rqt_image_view /teat_detection/debug_image
 ```
 
 测试步骤：

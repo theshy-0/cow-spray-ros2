@@ -25,6 +25,9 @@ sick_yolo_debug:
     tracked_detections_topic: "/udder/tracked_detections"
     udder_status_topic: "/udder/status"
     entry_status_topic: "/entry/status"
+    teat_image_topic: "/teat_detection/debug_image"
+    entry_image_topic: "/leg_entry/debug_image"
+    # 可选综合叠加画面；保留原话题以兼容现有rqt和文档。
     image_topic: "/sick_yolo_debug/image"
     base_frame: "base_link"
     enable_vision_csv: true
@@ -84,18 +87,18 @@ leg_entry_node:
     tf_timeout: 0.05
     min_depth_mm: 400.0
     max_depth_mm: 1000.0
-    leg_row_start_ratio: 0.60
-    leg_row_end_ratio: 0.90
+    leg_row_start_ratio: 0.75
+    leg_row_end_ratio: 0.95
     min_leg_separation_px: 30
     min_leg_height_px: 20
     min_leg_aspect_ratio: 0.9
     min_leg_blob_area_px: 20
     # 必须现场标定后设置为大于0的真实值；0会保持corridor_clear=false。
-    leg_gap_min_m: 0.0
+    leg_gap_min_m: 0.1
     leg_gap_max_m: 2.0
-    stable_window_frames: 8
-    stable_min_valid_frames: 6
+    stable_window_frames: 6
+    stable_min_valid_frames: 2
     stable_duration: 0.20
     max_center_spread_m: 0.10
-    max_gap_spread_m: 0.05
+    max_gap_spread_m: 0.15
     production_axis: [1.0, 0.0, 0.0]

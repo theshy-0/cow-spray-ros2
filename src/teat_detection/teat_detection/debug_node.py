@@ -1,4 +1,4 @@
-"""Optional rqt image source for visualizing YOLO detections and teat IDs."""
+"""Independent leg, teat, and combined debug image outputs."""
 
 from collections import OrderedDict
 import json
@@ -39,6 +39,8 @@ class DetectionDebugNode(Node):
         self.declare_parameter("tracked_detections_topic", "/udder/tracked_detections")
         self.declare_parameter("udder_status_topic", "/udder/status")
         self.declare_parameter("entry_status_topic", "/entry/status")
+        self.declare_parameter("teat_image_topic", "/teat_detection/debug_image")
+        self.declare_parameter("entry_image_topic", "/leg_entry/debug_image")
         self.declare_parameter("image_topic", "/sick_yolo_debug/image")
         self.declare_parameter("base_frame", "base_link")
         self.declare_parameter("enable_vision_csv", False)
@@ -54,13 +56,20 @@ class DetectionDebugNode(Node):
         self.declare_parameter("debug_base_jump_threshold", 0.03)
         self._images = OrderedDict()
         self._depths = OrderedDict()
+        self._entry_statuses = OrderedDict()
+        self._entry_images_published = OrderedDict()
         self._tf_cache = OrderedDict()
         self._prediction_label = ""
-        self._entry_status = None
         self._tracked_topic = str(
             self.get_parameter("tracked_detections_topic").value
         )
-        self.image_pub = self.create_publisher(
+        self.teat_image_pub = self.create_publisher(
+            Image, str(self.get_parameter("teat_image_topic").value), SENSOR_QOS
+        )
+        self.entry_image_pub = self.create_publisher(
+            Image, str(self.get_parameter("entry_image_topic").value), SENSOR_QOS
+        )
+        self.combined_image_pub = self.create_publisher(
             Image, str(self.get_parameter("image_topic").value), SENSOR_QOS
         )
         self.tf_buffer = tf2_ros.Buffer()
@@ -137,6 +146,7 @@ class DetectionDebugNode(Node):
         self._images[self._key(msg.header.stamp)] = (msg.header, intensity.copy())
         while len(self._images) > 32:
             self._images.popitem(last=False)
+        self._publish_entry_image(self._key(msg.header.stamp))
 
     def _on_depth(self, msg: Image) -> None:
         if msg.encoding not in ("16UC1", "mono16"):
@@ -161,10 +171,12 @@ class DetectionDebugNode(Node):
             value = (np.eye(3), np.zeros(3), self._stamp_seconds(stamp))
         else:
             try:
+                # 相机帧时间戳可能比 TF 最新数据超前，查询过去一小段缓冲避免外推未来
+                query_time = Time.from_msg(stamp) - Duration(seconds=0.2)
                 transform = self.tf_buffer.lookup_transform(
                     base_frame,
                     frame_id,
-                    Time.from_msg(stamp),
+                    query_time,
                     timeout=Duration(
                         seconds=float(self.get_parameter("vision_tf_timeout").value)
                     ),
@@ -323,12 +335,14 @@ class DetectionDebugNode(Node):
             )
 
     def _on_entry_status(self, msg: EntryStatus) -> None:
-        self._entry_status = msg
+        key = self._key(msg.header.stamp)
+        self._entry_statuses[key] = msg
+        while len(self._entry_statuses) > 64:
+            self._entry_statuses.popitem(last=False)
+        self._publish_entry_image(key)
 
-    def _draw_entry_overlay(self, image: np.ndarray) -> None:
-        status = self._entry_status
-        if status is None:
-            return
+    @staticmethod
+    def _draw_entry_overlay(image: np.ndarray, status: EntryStatus) -> None:
         pixels = (
             (int(status.left_inner_u), int(status.left_inner_v)),
             (int(status.right_inner_u), int(status.right_inner_v)),
@@ -348,14 +362,7 @@ class DetectionDebugNode(Node):
             0.38, color, 1, cv2.LINE_AA,
         )
 
-    def _on_detections(self, msg: Detection2DArray) -> None:
-        self._record_measured(msg)
-        item = self._images.pop(self._key(msg.header.stamp), None)
-        if item is None or self.image_pub.get_subscription_count() == 0:
-            return
-        header, intensity = item
-        image = intensity_to_bgr(intensity, *intensity.shape)
-        self._draw_entry_overlay(image)
+    def _draw_teat_overlay(self, image: np.ndarray, msg: Detection2DArray) -> None:
         for detection in msg.detections:
             bbox = detection.bbox
             x1 = int(round(bbox.center.position.x - bbox.size_x * 0.5))
@@ -409,6 +416,9 @@ class DetectionDebugNode(Node):
                 1,
                 cv2.LINE_AA,
             )
+
+    @staticmethod
+    def _publish_image(publisher, header, image: np.ndarray) -> None:
         output = Image()
         output.header = header
         output.height, output.width = image.shape[:2]
@@ -416,7 +426,43 @@ class DetectionDebugNode(Node):
         output.is_bigendian = False
         output.step = output.width * 3
         output.data = np.ascontiguousarray(image).tobytes()
-        self.image_pub.publish(output)
+        publisher.publish(output)
+
+    def _publish_entry_image(self, key: tuple[int, int]) -> None:
+        if (self.entry_image_pub.get_subscription_count() == 0
+                or key in self._entry_images_published):
+            return
+        item = self._images.get(key)
+        status = self._entry_statuses.get(key)
+        if item is None or status is None:
+            return
+        header, intensity = item
+        image = intensity_to_bgr(intensity, *intensity.shape)
+        self._draw_entry_overlay(image, status)
+        self._publish_image(self.entry_image_pub, header, image)
+        self._entry_images_published[key] = None
+        while len(self._entry_images_published) > 64:
+            self._entry_images_published.popitem(last=False)
+
+    def _on_detections(self, msg: Detection2DArray) -> None:
+        self._record_measured(msg)
+        key = self._key(msg.header.stamp)
+        item = self._images.get(key)
+        wants_teat = self.teat_image_pub.get_subscription_count() > 0
+        wants_combined = self.combined_image_pub.get_subscription_count() > 0
+        if item is None or not (wants_teat or wants_combined):
+            return
+        header, intensity = item
+        image = intensity_to_bgr(intensity, *intensity.shape)
+        self._draw_teat_overlay(image, msg)
+        if wants_teat:
+            self._publish_image(self.teat_image_pub, header, image)
+        if wants_combined:
+            combined = image.copy()
+            status = self._entry_statuses.get(key)
+            if status is not None:
+                self._draw_entry_overlay(combined, status)
+            self._publish_image(self.combined_image_pub, header, combined)
 
     def destroy_node(self):
         if self._recorder is not None:

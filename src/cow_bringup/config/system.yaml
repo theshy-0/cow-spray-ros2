@@ -4,4 +4,6 @@ system:
   tool_frame: "tool0"
   raw_detections_topic: "/detector_node/detections"
   tracked_detections_topic: "/udder/tracked_detections"
-  debug_image_topic: "/sick_yolo_debug/image"
+  teat_debug_image_topic: "/teat_detection/debug_image"
+  leg_debug_image_topic: "/leg_entry/debug_image"
+  combined_debug_image_topic: "/sick_yolo_debug/image"

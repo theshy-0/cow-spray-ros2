@@ -8,7 +8,7 @@
 
 ## 系统结构
 
-![当前 ROS 2 乳头识别与机械臂视觉伺服系统结构图](./docs/system_architecture.svg)
+![当前 ROS 2 乳头识别与机械臂视觉伺服系统结构图](docs/system_architecture.svg)
 
 图中连线含义：
 
@@ -55,7 +55,7 @@ ESTUN机械臂
 | `/detector_node` | 强度图、深度图、相机内参 | `/detector_node/detections` |
 | `/teat_id_node` | 原始检测结果 | `/udder/tracked_detections`、`/udder/status`、`udder_frame` |
 | `/leg_entry_node` | 深度图、内参、历史TF | `/entry/status`（双腿内缘、间距、中心、速度、许可） |
-| `/sick_yolo_debug` | 图像、深度、原始/跟踪检测、状态 | `/sick_yolo_debug/image` |
+| `/sick_yolo_debug` | 图像、深度、原始/跟踪检测、入口状态 | 独立乳头图、独立牛腿图、可选综合图 |
 | `/hand_eye_tf` | `hand_eye.yaml` | `tool0 → sick_camera_optical_frame` 静态TF |
 | `/estun_driver` | 跟踪目标、TF2、CRI反馈 | 250 Hz CRI命令、`base_link → tool0`、状态与调试话题 |
 
@@ -66,14 +66,16 @@ ESTUN机械臂
 /estun_driver/status       当前目标、序列阶段和安全状态
 /estun_driver/action_log   到达、切点和回位事件
 /pbvs/debug                PBVS误差、期望速度、Ruckig输出和命令位置
-/sick_yolo_debug/image     带bbox、乳头ID和预测状态的调试画面
+/teat_detection/debug_image  乳头bbox、语义ID和预测状态
+/leg_entry/debug_image       牛腿内侧点、间距、速度和入场原因
+/sick_yolo_debug/image       乳头与牛腿综合叠加画面（兼容输出）
 /entry/status              牛腿入场测量、稳定性、间距与产线速度
 /entry/detection_enabled   一轮动作前启用、乳头接管后关闭牛腿检测
 /sprayer/command           逻辑喷洒命令；默认disabled并保持false
 /estun_driver/recover      故障锁存确认；不代替控制器人工复位
 ```
 
-## 入场判断
+## 牛腿入场与七秒门控
 
 `leg_entry_node` 只使用深度图下部ROI，要求检测到两个互相独立、近似竖直的连通域；单腿、粘连目标或数量异常都不会放行。节点读取两条腿的内缘深度，投影到三维并使用采集时间戳查询历史TF，随后在短窗口内验证中心位置和腿间距是否稳定。
 
@@ -186,6 +188,7 @@ base_link ──动态反馈──> tool0 ──手眼标定──> sick_camera_
 ```bash
 cd ~/Desktop/workspace/1/cow_spray_ws
 source /opt/ros/humble/setup.bash
+
 # 如果依赖安装在conda环境中
 conda activate ros2_humble
 
@@ -204,6 +207,12 @@ ros2 launch cow_bringup bringup.launch.py
 查看检测画面：
 
 ```bash
+ros2 run rqt_image_view rqt_image_view /teat_detection/debug_image
+
+# 另开一个rqt窗口查看牛腿，画面更新不再依赖YOLO消息
+ros2 run rqt_image_view rqt_image_view /leg_entry/debug_image
+
+# 可选综合叠加画面
 ros2 run rqt_image_view rqt_image_view /sick_yolo_debug/image
 ```
 
@@ -279,3 +288,22 @@ cow_spray_ws/
 ├── install/     # 本地生成，不提交Git
 └── log/         # 本地生成，不提交Git
 ```
+
+## Git提交前检查
+
+```bash
+git status --short
+```
+
+建议 `.gitignore` 至少包含：
+
+```gitignore
+build/
+install/
+log/
+__pycache__/
+.pytest_cache/
+*.pyc
+```
+
+不要提交机械臂账号密码、SSH密码、私有模型训练数据或现场网络凭据。

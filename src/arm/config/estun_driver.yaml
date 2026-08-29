@@ -15,8 +15,8 @@ estun_driver:
     entry_min_confidence: 0.70
     entry_production_axis: [1.0, 0.0, 0.0]
     entry_work_window_exit_m: 1.50
-    estimated_cycle_time_s: 6.0
-    cycle_time_limit_s: 7.0
+    estimated_cycle_time_s: 10.0
+    cycle_time_limit_s: 14.0
     cycle_time_reserve_s: 0.7
     entry_minimum_line_speed_mps: 0.01
     # 可选牛腿中心预跟随。期望相机位置未现场验证前保持 false。
@@ -37,14 +37,14 @@ estun_driver:
     # udder_frame 作为参考系（用于推断缺失乳头），不进入动作序列
     udder_frame: "udder_frame"
     # 4 点序列：只做 4 个乳头（按治疗顺序）
-    target_sequence: ["teat_front_left"]
+    target_sequence: ["teat_front_left", "teat_rear_left", "teat_rear_right", "teat_front_right"]
     # 每点 base 系附加偏移（乳头点加喷洒偏移，Z 向下）
     # 每点 base 系附加偏移（拍平 3*N；统一加 Z 上方 0.08 安全偏移避免遮挡相机，
     # 乳头点再叠加喷洒下移 -0.05，故乳头净 Z=+0.03）
-    target_offsets: [-0.80, 0.0, -0.20]
+    target_offsets: [-0.80, 0.0, -0.20, -0.80, 0.0, -0.20, -0.80, 0.0, -0.20, -0.80, 0.0, -0.20]
     dry_run: true
     return_home: true
-    loop: false
+    loop: true
     # 每轮开始前通过Topic短窗口锁存四点ID。
     # 动态目标无需静止：最近5个视觉帧至少3帧四点完整且结构一致后锁定ID
     init_window_frames: 5
@@ -57,13 +57,13 @@ estun_driver:
     # 眼在手上：直接在相机系计算目标相对期望位置的3D PBVS误差。
     pbvs_control_frame: "camera"
     desired_target_cam: [0.0, 0.0, 0.50]
-    lambda_gain_xyz: [1.0, 1.0, 0.6]
-    feedforward_gain_xyz: [0.0, 0.0, 0.0]
+    lambda_gain_xyz: [1.2, 1.2, 0.6] #[1.0, 1.0, 0.6]
+    feedforward_gain_xyz: [0.2, 0.2, 0.0] #[0.0, 0.0, 0.0]
     # Ruckig 三轴在线轨迹限制；先用平滑生产基线，再依据实测逐级提速。
-    vmax_xyz: [0.12, 0.12, 0.03]
-    amax_xyz: [0.8, 0.8, 0.20]
-    jmax_xyz: [1.5, 1.5, 0.50]
-    vmax_total: 0.15
+    vmax_xyz: [0.30, 0.30, 0.06] #[0.25, 0.25, 0.05] # [0.18, 0.18, 0.04] #[0.12, 0.12, 0.03]
+    amax_xyz: [1.8, 1.8, 0.35] #[1.5, 1.5, 0.30] # [1.2, 1.2, 0.25] #[0.8, 0.8, 0.20]
+    jmax_xyz: [3.0, 3.0, 0.80] #[3.0, 3.0, 0.80] #[2.5, 2.5, 0.70] #[2.0, 2.0, 0.60] #[1.5, 1.5, 0.50]
+    vmax_total: 0.36 #0.30 #0.22 #0.15
     process_noise_xyz: [0.06, 0.06, 0.05]
     measurement_noise_xyz: [0.008, 0.008, 0.015]
     # XY正常伺服 + Z低带宽伺服。Z使用独立死区和更低v/a/j，避免ToF噪声引起上下抖动。
@@ -78,7 +78,7 @@ estun_driver:
     # FL/RL/RR仅在XY位置和内部轨迹速度同时满足时切点；Z低带宽闭环独立运行。
     flyby_enabled: true
     flyby_tolerance_xy: 0.010
-    switch_speed_xy: 0.050
+    switch_speed_xy: 	0.050
     home_stay_duration: 0.20
     # 三类到位条件分别命名，不复用旧兼容参数。
     home_arrive_tolerance: 0.008
@@ -87,13 +87,13 @@ estun_driver:
     arrive_stable_duration: 0.03
     stay_duration: 0.03
     workspace_min: [0.5, -0.4, 0.2]
-    workspace_max: [0.8, 0.8, 0.7]
+    workspace_max: [1.0, 0.8, 0.7]
     # base系回位也使用同一套 Ruckig 约束。
     lambda_gain: 1.2
     feedforward_gain: 0.30
-    vmax: 0.12
-    amax: 0.8
-    jmax: 1.5
+    vmax: 0.20 #0.12
+    amax: 1.2 #0.8
+    jmax: 2.0 #1.5
     # 滤波 / 超时 / 预测参数
     process_noise: 0.02
     measurement_noise: 0.006
@@ -106,6 +106,6 @@ estun_driver:
     z_deviation_warn: 0.015
     z_deviation_halt: 0.030
     z_deviation_halt_duration: 0.10
-    command_error_warn: 0.020
+    command_error_warn: 0.030 #0.020
     command_error_halt: 0.040
     busy_wait_margin: 0.0002
