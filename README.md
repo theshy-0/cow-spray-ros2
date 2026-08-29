@@ -4,7 +4,7 @@
 
 > 本项目会连接真实工业机械臂。首次运行、修改手眼标定、工作空间、目标偏移或速度参数后，必须先使用 `dry_run` 和低速配置验证，并确保急停可用。
 
-分模块调试和生产放行步骤见 [docs/MODULE_TEST_SOP.md](docs/MODULE_TEST_SOP.md)。
+分模块调试和生产放行步骤见 [docs/test_sop.md](./docs/test_sop.md)。
 
 ## 系统结构
 
