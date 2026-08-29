@@ -1,189 +1,67 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1680 1060" role="img" aria-labelledby="arch-title arch-desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1180" role="img" aria-labelledby="title desc">
+  <title id="title">cow_spray_ws ROS 2 系统结构图</title>
+  <desc id="desc">SICK ToF 相机同时支持牛腿入场检测和乳头识别。安全入场后可选牛腿预跟随，随后锁定牛腿检测并切换到四乳头 PBVS 动作。控制器包含七秒周期、喷头许可和故障锁存，唯一 250Hz CRI 线程控制 ESTUN 机械臂。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0L10 4L0 8Z" fill="#172033"/></marker>
+    <marker id="arrowTf" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0L10 4L0 8Z" fill="#07869a"/></marker>
+    <marker id="arrowCtl" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0L10 4L0 8Z" fill="#6842c2"/></marker>
+    <marker id="arrowSafe" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0L10 4L0 8Z" fill="#c86514"/></marker>
     <style>
-.title{font-size:34px;font-weight:600;fill:#172033}.subtitle{font-size:18px;fill:#5f6b7a}.col-title{font-size:18px;font-weight:600;fill:#172033}.node-title{font-size:17px;font-weight:600;fill:#172033}.label{font-size:15px;fill:#172033}.small{font-size:13px;fill:#5f6b7a}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.sep{stroke:#b8c0cc;stroke-width:1.5;stroke-dasharray:7 7}.box{stroke:#b8c0cc;stroke-width:1.5;rx:12}.sensor{fill:#eaf1ff}.vision{fill:#ecf8ed}.tf{fill:#e9f8fb}.control{fill:#edf2ff}.robot{fill:#f3ecff}.diag{fill:#fff6e5}.topic-line{fill:none;stroke:#172033;stroke-width:2;marker-end:url(#arrow-topic)}.tf-line{fill:none;stroke:#0891b2;stroke-width:2;stroke-dasharray:7 6;marker-end:url(#arrow-tf)}.service-line{fill:none;stroke:#7c3aed;stroke-width:2;stroke-dasharray:9 4 2 4;marker-end:url(#arrow-service)}.feedback-line{fill:none;stroke:#d97706;stroke-width:2;marker-end:url(#arrow-feedback)}.branch-line{fill:none;stroke:#5f6b7a;stroke-width:1.7;marker-end:url(#arrow-muted)}.pill{stroke-width:1.3;rx:18}.legend-line{stroke-width:3}
-</style><title id="arch-title">当前ROS 2乳头识别与机械臂视觉伺服系统结构图</title>
-    <desc id="arch-desc">从SICK相机采集，经YOLO检测、三维定位、乳头ID绑定与补点，再经过TF2、Kalman、PBVS和Ruckig，在唯一250赫兹CRI线程中控制ESTUN机械臂。</desc>
-    <defs>
-      <marker id="arrow-topic" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#172033"/></marker>
-      <marker id="arrow-tf" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#0891b2"/></marker>
-      <marker id="arrow-service" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#7c3aed"/></marker>
-      <marker id="arrow-feedback" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#d97706"/></marker>
-      <marker id="arrow-muted" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#5f6b7a"/></marker>
-    </defs>
+      .title{font:600 34px system-ui,"Microsoft YaHei",sans-serif;fill:#172033}.subtitle{font:400 17px system-ui,"Microsoft YaHei",sans-serif;fill:#5f6b7a}.section{font:600 17px system-ui,"Microsoft YaHei",sans-serif;fill:#172033}.node{font:600 16px system-ui,"Microsoft YaHei",sans-serif;fill:#172033}.text{font:400 14px system-ui,"Microsoft YaHei",sans-serif;fill:#172033}.small{font:400 12px system-ui,"Microsoft YaHei",sans-serif;fill:#5f6b7a}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.box{stroke:#9aa6b5;stroke-width:1.4;rx:12}.camera{fill:#eaf1ff}.vision{fill:#ecf8ed}.entry{fill:#fff5df}.tf{fill:#e8f8fb}.control{fill:#edf2ff}.robot{fill:#f3ecff}.safe{fill:#fff0ec}.neutral{fill:#f5f7fa}.topic{fill:none;stroke:#172033;stroke-width:2;marker-end:url(#arrow)}.tfline{fill:none;stroke:#07869a;stroke-width:2;stroke-dasharray:7 5;marker-end:url(#arrowTf)}.controlLine{fill:none;stroke:#6842c2;stroke-width:2;stroke-dasharray:9 4 2 4;marker-end:url(#arrowCtl)}.safeLine{fill:none;stroke:#c86514;stroke-width:2.1;marker-end:url(#arrowSafe)}.mutedLine{fill:none;stroke:#7c8796;stroke-width:1.6;stroke-dasharray:5 5;marker-end:url(#arrow)}.sep{stroke:#c6ccd5;stroke-width:1.2;stroke-dasharray:6 7}.phase{stroke:#6842c2;stroke-width:1.5;fill:#f7f3ff;rx:18}.pass{fill:#ecf8ed;stroke:#4d9460;stroke-width:1.4;rx:10}.block{fill:#fff0ec;stroke:#c9604c;stroke-width:1.4;rx:10}
+    </style>
+  </defs>
 
-    <text x="840" y="52" text-anchor="middle" class="title">当前 ROS 2 节点结构图</text>
-    <text x="840" y="84" text-anchor="middle" class="subtitle">动态乳头识别、短时补点与 ESTUN 机械臂视觉伺服系统</text>
+  <text x="900" y="46" text-anchor="middle" class="title">cow_spray_ws 当前 ROS 2 系统结构图</text>
+  <text x="900" y="76" text-anchor="middle" class="subtitle">牛腿安全入场 → 可选预跟随 → 乳头识别与补点 → 3D PBVS → ESTUN 实时控制</text>
+  <line x1="300" y1="110" x2="300" y2="880" class="sep"/><line x1="720" y1="110" x2="720" y2="880" class="sep"/><line x1="1085" y1="110" x2="1085" y2="880" class="sep"/><line x1="1450" y1="110" x2="1450" y2="880" class="sep"/>
 
-    <line x1="315" y1="128" x2="315" y2="1010" class="sep"/>
-    <line x1="735" y1="128" x2="735" y2="1010" class="sep"/>
-    <line x1="1080" y1="128" x2="1080" y2="1010" class="sep"/>
-    <line x1="1400" y1="128" x2="1400" y2="1010" class="sep"/>
+  <rect x="25" y="100" width="250" height="42" class="box camera"/><text x="150" y="127" text-anchor="middle" class="section">1. 传感器与采集</text>
+  <rect x="325" y="100" width="370" height="42" class="box vision"/><text x="510" y="127" text-anchor="middle" class="section">2. 感知：牛腿 + 乳头</text>
+  <rect x="745" y="100" width="315" height="42" class="box tf"/><text x="902" y="127" text-anchor="middle" class="section">3. 时间、ID 与 TF2</text>
+  <rect x="1110" y="100" width="315" height="42" class="box control"/><text x="1267" y="127" text-anchor="middle" class="section">4. 状态机与视觉伺服</text>
+  <rect x="1475" y="100" width="300" height="42" class="box robot"/><text x="1625" y="127" text-anchor="middle" class="section">5. 执行器与安全输出</text>
 
-    <rect x="24" y="112" width="266" height="42" class="box sensor"/>
-    <text x="157" y="139" text-anchor="middle" class="col-title">1. 传感器与采集</text>
-    <rect x="345" y="112" width="360" height="42" class="box vision"/>
-    <text x="525" y="139" text-anchor="middle" class="col-title">2. 视觉识别与乳头补点</text>
-    <rect x="765" y="112" width="285" height="42" class="box tf"/>
-    <text x="907" y="139" text-anchor="middle" class="col-title">3. TF2 与手眼标定</text>
-    <rect x="1110" y="112" width="260" height="42" class="box control"/>
-    <text x="1240" y="139" text-anchor="middle" class="col-title">4. 运动规划与跟随</text>
-    <rect x="1430" y="112" width="225" height="42" class="box robot"/>
-    <text x="1542" y="139" text-anchor="middle" class="col-title">5. 机器人本体</text>
+  <rect x="35" y="245" width="105" height="150" class="box camera"/><text x="87" y="280" text-anchor="middle" class="node">SICK</text><text x="87" y="305" text-anchor="middle" class="text">Visionary-T</text><text x="87" y="328" text-anchor="middle" class="text">Mini</text><text x="87" y="359" text-anchor="middle" class="small">ToF 深度相机</text><text x="87" y="379" text-anchor="middle" class="small mono">192.168.1.30</text>
+  <rect x="165" y="235" width="120" height="170" class="box camera"/><text x="225" y="268" text-anchor="middle" class="node mono">/camera_node</text><text x="225" y="297" text-anchor="middle" class="text">TCP 采集</text><text x="225" y="322" text-anchor="middle" class="text">统一采集时间戳</text><text x="225" y="347" text-anchor="middle" class="text">深度无效值→0</text><text x="225" y="372" text-anchor="middle" class="small">frame_timeout=0.3s</text><path d="M140 320H165" class="topic"/>
 
-    <!-- TF and calibration layer -->
-    <rect x="785" y="175" width="245" height="76" class="box tf"/>
-    <text x="907" y="202" text-anchor="middle" class="node-title mono">/hand_eye_tf</text>
-    <text x="907" y="226" text-anchor="middle" class="label">静态手眼标定矩阵</text>
-    <text x="907" y="244" text-anchor="middle" class="small">eye-in-hand</text>
-    <rect x="770" y="270" width="275" height="38" class="box pill tf"/>
-    <text x="907" y="294" text-anchor="middle" class="small mono">tool0 → sick_camera_optical_frame</text>
-    <path d="M907 251 L907 270" class="tf-line"/>
+  <rect x="330" y="170" width="190" height="34" class="box camera"/><text x="425" y="192" text-anchor="middle" class="small mono">/camera_node/intensity</text>
+  <rect x="330" y="215" width="190" height="34" class="box camera"/><text x="425" y="237" text-anchor="middle" class="small mono">/camera_node/depth</text>
+  <rect x="330" y="260" width="190" height="34" class="box camera"/><text x="425" y="282" text-anchor="middle" class="small mono">/camera_node/camera_info</text>
+  <rect x="330" y="305" width="190" height="34" class="box camera"/><text x="425" y="327" text-anchor="middle" class="small mono">/camera_node/range_offset_mm</text>
+  <path d="M285 275H308V187H330M285 295H315V232H330M285 320H330M285 345H308V322H330" class="topic"/>
 
-    <rect x="760" y="330" width="625" height="48" class="box tf"/>
-    <text x="1072" y="360" text-anchor="middle" class="node-title mono">/tf · /tf_static（全局坐标变换层）</text>
-    <path d="M907 308 L907 330" class="tf-line"/>
+  <rect x="545" y="165" width="150" height="192" class="box entry"/><text x="620" y="196" text-anchor="middle" class="node mono">/leg_entry_node</text><text x="620" y="225" text-anchor="middle" class="text">深度下部 ROI</text><text x="620" y="249" text-anchor="middle" class="text">双连通域腿检测</text><text x="620" y="273" text-anchor="middle" class="text">左右内缘 2D→3D</text><text x="620" y="297" text-anchor="middle" class="text">间距 / 中心 / 速度</text><text x="620" y="321" text-anchor="middle" class="small">拒绝单腿与粘连 fallback</text><text x="620" y="341" text-anchor="middle" class="small">稳定窗口 6/8 帧</text><path d="M520 232H545M520 277H535V250H545M520 322H535V270H545" class="topic"/>
 
-    <!-- Sensor and camera node -->
-    <rect x="30" y="430" width="112" height="174" class="box sensor"/>
-    <text x="86" y="464" text-anchor="middle" class="node-title">SICK</text>
-    <text x="86" y="490" text-anchor="middle" class="label">Visionary-T</text>
-    <text x="86" y="514" text-anchor="middle" class="label">Mini</text>
-    <text x="86" y="548" text-anchor="middle" class="small">ToF相机</text>
-    <text x="86" y="571" text-anchor="middle" class="small mono">192.168.1.30</text>
+  <rect x="545" y="405" width="150" height="192" class="box vision"/><text x="620" y="436" text-anchor="middle" class="node mono">/detector_node</text><text x="620" y="465" text-anchor="middle" class="text">YOLO bbox</text><text x="620" y="489" text-anchor="middle" class="text">ROI 深度滤波</text><text x="620" y="513" text-anchor="middle" class="text">实时内参投影</text><text x="620" y="537" text-anchor="middle" class="text">乳头相机系 3D</text><text x="620" y="565" text-anchor="middle" class="small mono">/detector_node/detections</text><path d="M520 187H530V455H545M520 232H535V480H545M520 277H540V505H545" class="topic"/>
 
-    <rect x="170" y="448" width="126" height="138" class="box sensor"/>
-    <text x="233" y="481" text-anchor="middle" class="node-title mono">/camera_node</text>
-    <text x="233" y="509" text-anchor="middle" class="label">TCP采集</text>
-    <text x="233" y="533" text-anchor="middle" class="label">统一时间戳</text>
-    <text x="233" y="557" text-anchor="middle" class="small">16UC1 / mm</text>
-    <path d="M142 517 L170 517" class="topic-line"/>
+  <rect x="760" y="165" width="285" height="126" class="box entry"/><text x="902" y="196" text-anchor="middle" class="node mono">/entry/status · EntryStatus</text><text x="902" y="225" text-anchor="middle" class="text">valid · stable · corridor_clear</text><text x="902" y="249" text-anchor="middle" class="text">gap_m · line_speed_mps · cow_track_id</text><text x="902" y="273" text-anchor="middle" class="small">间距未标定时始终禁止放行</text><path d="M695 245H760" class="topic"/>
 
-    <!-- Camera topics -->
-    <rect x="340" y="392" width="184" height="36" class="box pill sensor"/>
-    <text x="432" y="416" text-anchor="middle" class="small mono">/camera_node/intensity</text>
-    <rect x="340" y="447" width="184" height="36" class="box pill sensor"/>
-    <text x="432" y="471" text-anchor="middle" class="small mono">/camera_node/depth</text>
-    <rect x="340" y="502" width="184" height="36" class="box pill sensor"/>
-    <text x="432" y="526" text-anchor="middle" class="small mono">/camera_node/camera_info</text>
-    <rect x="340" y="557" width="184" height="36" class="box pill sensor"/>
-    <text x="432" y="581" text-anchor="middle" class="small mono">/camera_node/range_offset_mm</text>
-    <path d="M296 472 L320 472 L320 410 L340 410" class="topic-line"/>
-    <path d="M296 500 L326 500 L326 465 L340 465" class="topic-line"/>
-    <path d="M296 528 L326 528 L326 520 L340 520" class="topic-line"/>
-    <path d="M296 556 L326 556 L326 575 L340 575" class="topic-line"/>
+  <rect x="760" y="405" width="285" height="192" class="box vision"/><text x="902" y="436" text-anchor="middle" class="node mono">/teat_id_node</text><text x="902" y="465" text-anchor="middle" class="text">FL / RL / RR / FR 语义 ID</text><text x="902" y="489" text-anchor="middle" class="text">全排列最小位移匹配</text><text x="902" y="513" text-anchor="middle" class="text">刚体模板 + 两点短时补点</text><text x="902" y="537" text-anchor="middle" class="text">真实与预测来源分离</text><text x="902" y="565" text-anchor="middle" class="small mono">/udder/tracked_detections</text><text x="902" y="584" text-anchor="middle" class="small mono">/udder/status</text><path d="M695 520H760" class="topic"/>
 
-    <!-- Detector -->
-    <rect x="550" y="380" width="170" height="226" class="box vision"/>
-    <text x="635" y="412" text-anchor="middle" class="node-title mono">/detector_node</text>
-    <text x="635" y="443" text-anchor="middle" class="label">强度图增强</text>
-    <text x="635" y="469" text-anchor="middle" class="label">YOLO bbox检测</text>
-    <text x="635" y="495" text-anchor="middle" class="label">Depth ROI 50%</text>
-    <text x="635" y="521" text-anchor="middle" class="label">MAD去离群</text>
-    <text x="635" y="547" text-anchor="middle" class="label">2D → 相机系3D</text>
-    <text x="635" y="579" text-anchor="middle" class="small">bbox + score + XYZ</text>
-    <path d="M524 410 L550 410" class="topic-line"/>
-    <path d="M524 465 L550 465" class="topic-line"/>
-    <path d="M524 520 L550 520" class="topic-line"/>
-    <path d="M524 575 L550 575" class="topic-line"/>
+  <rect x="760" y="645" width="285" height="106" class="box tf"/><text x="902" y="676" text-anchor="middle" class="node">历史 TF2 转换</text><text x="902" y="703" text-anchor="middle" class="text mono">image stamp: camera → base_link</text><text x="902" y="728" text-anchor="middle" class="small">眼在手上禁止回退到最新 TF</text><path d="M902 597V645" class="tfline"/>
+  <rect x="760" y="800" width="285" height="62" class="box tf"/><text x="902" y="827" text-anchor="middle" class="node mono">/hand_eye_tf</text><text x="902" y="849" text-anchor="middle" class="small mono">tool0 → sick_camera_optical_frame</text><path d="M902 800V751" class="tfline"/>
 
-    <!-- Raw detections and ID node -->
-    <rect x="755" y="432" width="235" height="66" class="box pill vision"/>
-    <text x="872" y="458" text-anchor="middle" class="label mono">/detector_node/detections</text>
-    <text x="872" y="482" text-anchor="middle" class="small">原始乳头：尚无稳定语义ID</text>
-    <path d="M720 465 L755 465" class="topic-line"/>
+  <rect x="1115" y="165" width="305" height="145" class="box entry"/><text x="1267" y="196" text-anchor="middle" class="node">EntryGate 入场许可</text><text x="1267" y="224" text-anchor="middle" class="text">机械臂就绪 + 双腿稳定 + 间距合格</text><text x="1267" y="248" text-anchor="middle" class="text">数据新鲜 + 置信度 + 乳头 ID 锁定</text><text x="1267" y="272" text-anchor="middle" class="text">剩余时间 ≥ 动作时间 + 安全余量</text><text x="1267" y="294" text-anchor="middle" class="small">不满足任一条件：WAIT_ENTRY</text><path d="M1045 228H1115" class="topic"/>
 
-    <rect x="780" y="525" width="205" height="234" class="box vision"/>
-    <text x="882" y="556" text-anchor="middle" class="node-title mono">/teat_id_node</text>
-    <text x="882" y="588" text-anchor="middle" class="label">首次：Z分前后、X分左右</text>
-    <text x="882" y="614" text-anchor="middle" class="label">后续：最小3D位移匹配</text>
-    <text x="882" y="640" text-anchor="middle" class="label">3点：降级拟合udder_frame</text>
-    <text x="882" y="666" text-anchor="middle" class="label">2点：短时四点模板补齐</text>
-    <text x="882" y="692" text-anchor="middle" class="label">observed / predicted分离</text>
-    <text x="882" y="726" text-anchor="middle" class="small">ID：FL · FR · RL · RR</text>
-    <path d="M872 498 L872 525" class="topic-line"/>
+  <rect x="1115" y="345" width="305" height="210" class="box control"/><text x="1267" y="376" text-anchor="middle" class="node mono">/estun_driver</text><text x="1267" y="404" text-anchor="middle" class="text">WAIT_ENTRY → LEG_PRETRACK（可选）</text><text x="1267" y="428" text-anchor="middle" class="text">→ TEAT_WORK → RETURNING → COMPLETE</text><text x="1267" y="456" text-anchor="middle" class="text">CA Kalman XYZ · freshness</text><text x="1267" y="480" text-anchor="middle" class="text">相机系 3D PBVS · 历史 TF</text><text x="1267" y="504" text-anchor="middle" class="text">Ruckig v/a/j · 工作空间</text><text x="1267" y="530" text-anchor="middle" class="small">乳头接管后关闭牛腿检测</text><path d="M1267 310V345" class="topic"/><path d="M1045 505H1115" class="topic"/><path d="M1045 698H1080V480H1115" class="tfline"/>
 
-    <rect x="760" y="786" width="245" height="50" class="box pill vision"/>
-    <text x="882" y="807" text-anchor="middle" class="small mono">/udder/tracked_detections</text>
-    <text x="882" y="826" text-anchor="middle" class="small">真实检测 + 稳定ID + 原始时间戳</text>
-    <rect x="760" y="852" width="245" height="50" class="box pill diag"/>
-    <text x="882" y="873" text-anchor="middle" class="small mono">/udder/status</text>
-    <text x="882" y="892" text-anchor="middle" class="small">observed · predicted · lost</text>
-    <path d="M850 759 L850 786" class="topic-line"/>
-    <path d="M916 759 L916 852" class="branch-line"/>
+  <rect x="1115" y="595" width="305" height="112" class="box control"/><text x="1267" y="626" text-anchor="middle" class="node">唯一 250 Hz CRI 线程</text><text x="1267" y="653" text-anchor="middle" class="text">反馈 → PBVS → Ruckig → 绝对位置命令</text><text x="1267" y="678" text-anchor="middle" class="small">ROS 发布与门控不进入实时线程</text><path d="M1267 555V595" class="topic"/>
+  <rect x="1115" y="750" width="305" height="112" class="box safe"/><text x="1267" y="781" text-anchor="middle" class="node">安全监督</text><text x="1267" y="807" text-anchor="middle" class="text">7 s 超时 · 目标丢失 · 命令误差</text><text x="1267" y="831" text-anchor="middle" class="text">报警 / 急停 / 碰撞 → FAULT_LATCHED</text><text x="1267" y="851" text-anchor="middle" class="small">碰撞后不自动清错或盲目撤退</text><path d="M1267 750V707" class="safeLine"/>
 
-    <!-- Debug branch -->
-    <rect x="455" y="700" width="226" height="92" class="box diag"/>
-    <text x="568" y="729" text-anchor="middle" class="node-title mono">/sick_yolo_debug</text>
-    <text x="568" y="755" text-anchor="middle" class="label">bbox · ID · 真实/预测状态</text>
-    <text x="568" y="778" text-anchor="middle" class="small mono">/sick_yolo_debug/image</text>
-    <path d="M635 606 L635 675 L568 675 L568 700" class="branch-line"/>
-    <path d="M780 642 L700 642 L700 746 L681 746" class="branch-line"/>
+  <rect x="1480" y="330" width="285" height="168" class="box robot"/><text x="1622" y="364" text-anchor="middle" class="node">ESTUN 机械臂</text><text x="1622" y="395" text-anchor="middle" class="text">Codroid / CRI 控制器</text><text x="1622" y="423" text-anchor="middle" class="text mono">base_link → tool0</text><text x="1622" y="450" text-anchor="middle" class="small">TCP 位姿反馈</text><text x="1622" y="475" text-anchor="middle" class="small">实时控制命令</text><path d="M1420 650H1455V440H1480" class="topic"/><path d="M1480 470H1455V695H1420" class="tfline"/>
+  <rect x="1480" y="555" width="285" height="126" class="box entry"/><text x="1622" y="587" text-anchor="middle" class="node mono">/sprayer/command</text><text x="1622" y="615" text-anchor="middle" class="text">TEAT_WORK + staying + 目标许可</text><text x="1622" y="640" text-anchor="middle" class="small">默认 disabled：永远 false</text><text x="1622" y="661" text-anchor="middle" class="small">模拟量需要独立硬件适配器</text><path d="M1420 510H1455V618H1480" class="safeLine"/>
+  <rect x="1480" y="750" width="285" height="112" class="box safe"/><text x="1622" y="782" text-anchor="middle" class="node">故障输出与人工恢复</text><text x="1622" y="809" text-anchor="middle" class="text mono">/estun_driver/recover</text><text x="1622" y="833" text-anchor="middle" class="small">只确认软件锁存，不代替控制器复位</text><path d="M1420 806H1480" class="safeLine"/>
 
-    <!-- Controller -->
-    <rect x="1110" y="400" width="252" height="350" class="box control"/>
-    <text x="1236" y="434" text-anchor="middle" class="node-title mono">/estun_driver</text>
-    <text x="1236" y="466" text-anchor="middle" class="label">带时间戳Topic目标</text>
-    <text x="1236" y="492" text-anchor="middle" class="label">历史TF2：camera → base</text>
-    <text x="1236" y="518" text-anchor="middle" class="label">5帧窗口锁定稳定ID</text>
-    <text x="1236" y="544" text-anchor="middle" class="label">XYZ CA Kalman</text>
-    <text x="1236" y="570" text-anchor="middle" class="label">3D PBVS（相机系）</text>
-    <text x="1236" y="596" text-anchor="middle" class="label">Ruckig v / a / j整形</text>
-    <text x="1236" y="622" text-anchor="middle" class="label">目标超时渐退与安全检查</text>
-    <text x="1236" y="648" text-anchor="middle" class="label">唯一250Hz CRI线程</text>
-    <text x="1236" y="685" text-anchor="middle" class="small">target_sequence（当前：FL）</text>
-    <text x="1236" y="709" text-anchor="middle" class="small">完成 → Home</text>
-    <path d="M1005 811 L1058 811 L1058 520 L1110 520" class="topic-line"/>
-    <path d="M1072 378 L1072 420 L1110 420" class="tf-line"/>
+  <rect x="330" y="650" width="365" height="112" class="box neutral"/><text x="512" y="681" text-anchor="middle" class="node mono">/sick_yolo_debug</text><text x="512" y="708" text-anchor="middle" class="text">bbox + 乳头 ID + 补点状态</text><text x="512" y="732" text-anchor="middle" class="text">牛腿内缘 + 间距 + 速度 + 入场原因</text><text x="512" y="752" text-anchor="middle" class="small mono">/sick_yolo_debug/image</text><path d="M620 357V382H685V650" class="mutedLine"/><path d="M620 597V625H650V650" class="mutedLine"/><path d="M760 245H730V680H695" class="mutedLine"/>
 
-    <rect x="1108" y="790" width="255" height="58" class="box pill control"/>
-    <text x="1235" y="814" text-anchor="middle" class="small mono">/estun_driver/enable</text>
-    <text x="1235" y="835" text-anchor="middle" class="small">SetBool：人工使能/禁用</text>
-    <path d="M1235 790 L1235 750" class="service-line"/>
+  <text x="40" y="930" class="section">单轮生产状态与感知切换</text>
+  <rect x="40" y="960" width="205" height="66" class="phase"/><text x="142" y="987" text-anchor="middle" class="node">WAIT_ENTRY</text><text x="142" y="1010" text-anchor="middle" class="small">牛腿检测开启 · 不动作</text>
+  <rect x="300" y="960" width="215" height="66" class="phase"/><text x="407" y="987" text-anchor="middle" class="node">LEG_PRETRACK</text><text x="407" y="1010" text-anchor="middle" class="small">可选低速跟随牛腿中心</text>
+  <rect x="570" y="960" width="245" height="66" class="phase"/><text x="692" y="987" text-anchor="middle" class="node">TEAT_WORK</text><text x="692" y="1010" text-anchor="middle" class="small">关闭牛腿检测 · 四乳头动作</text>
+  <rect x="870" y="960" width="205" height="66" class="phase"/><text x="972" y="987" text-anchor="middle" class="node">RETURNING</text><text x="972" y="1010" text-anchor="middle" class="small">喷头关闭 · Ruckig 回位</text>
+  <rect x="1130" y="960" width="185" height="66" class="pass"/><text x="1222" y="987" text-anchor="middle" class="node">COMPLETE</text><text x="1222" y="1010" text-anchor="middle" class="small">本轮完成</text>
+  <rect x="1460" y="960" width="285" height="66" class="block"/><text x="1602" y="987" text-anchor="middle" class="node">FAULT_LATCHED</text><text x="1602" y="1010" text-anchor="middle" class="small">任意阶段故障 → 停止 + 喷头关闭</text>
+  <path d="M245 993H300M515 993H570M815 993H870M1075 993H1130" class="controlLine"/><path d="M142 1026V1080H1602V1026" class="safeLine"/>
 
-    <rect x="1108" y="870" width="255" height="94" class="box diag"/>
-    <text x="1235" y="896" text-anchor="middle" class="small mono">/pbvs/debug</text>
-    <text x="1235" y="919" text-anchor="middle" class="small mono">/estun_driver/status</text>
-    <text x="1235" y="942" text-anchor="middle" class="small mono">/estun_driver/action_log</text>
-    <path d="M1290 750 L1290 870" class="branch-line"/>
-
-    <!-- Dynamic robot TF -->
-    <rect x="1010" y="968" width="275" height="40" class="box pill tf"/>
-    <text x="1147" y="994" text-anchor="middle" class="small mono">TF：base_link → tool0（动态反馈）</text>
-    <path d="M1236 750 L1236 968" class="tf-line"/>
-    <path d="M1050 968 L1050 378" class="tf-line"/>
-
-    <!-- Robot -->
-    <rect x="1450" y="425" width="200" height="224" class="box robot"/>
-    <text x="1550" y="462" text-anchor="middle" class="node-title">ESTUN</text>
-    <text x="1550" y="493" text-anchor="middle" class="label">机械臂控制器</text>
-    <text x="1550" y="519" text-anchor="middle" class="label">Codroid SDK / CRI</text>
-    <text x="1550" y="557" text-anchor="middle" class="label">机械臂本体</text>
-    <text x="1550" y="592" text-anchor="middle" class="small mono">robot 192.168.1.136</text>
-    <text x="1550" y="615" text-anchor="middle" class="small mono">local 192.168.1.10</text>
-    <path d="M1362 514 L1450 514" class="topic-line"/>
-    <text x="1406" y="498" text-anchor="middle" class="small">CRI命令</text>
-    <path d="M1450 585 L1388 585 L1388 680 L1362 680" class="feedback-line"/>
-    <text x="1422" y="608" text-anchor="middle" class="small">TCP反馈</text>
-
-    <!-- Sequence and transform notes -->
-    <rect x="1438" y="700" width="105" height="140" class="box control"/>
-    <text x="1490" y="728" text-anchor="middle" class="node-title">动作序列</text>
-    <text x="1490" y="760" text-anchor="middle" class="label">FL</text>
-    <text x="1490" y="789" text-anchor="middle" class="label">↓</text>
-    <text x="1490" y="818" text-anchor="middle" class="label">Home</text>
-    <rect x="1558" y="700" width="100" height="140" class="box tf"/>
-    <text x="1608" y="728" text-anchor="middle" class="node-title">坐标核心</text>
-    <text x="1608" y="760" text-anchor="middle" class="small">camera点</text>
-    <text x="1608" y="786" text-anchor="middle" class="label">↓ TF2</text>
-    <text x="1608" y="814" text-anchor="middle" class="small">base点</text>
-
-    <!-- Legend -->
-    <rect x="1388" y="870" width="270" height="144" class="box diag"/>
-    <text x="1523" y="898" text-anchor="middle" class="node-title">图例（连线含义）</text>
-    <line x1="1412" y1="925" x2="1470" y2="925" class="legend-line" stroke="#172033"/>
-    <text x="1484" y="930" class="small">实线：Topic / 控制数据</text>
-    <line x1="1412" y1="952" x2="1470" y2="952" class="legend-line" stroke="#0891b2" stroke-dasharray="7 6"/>
-    <text x="1484" y="957" class="small">虚线：TF / TF2坐标变换</text>
-    <line x1="1412" y1="979" x2="1470" y2="979" class="legend-line" stroke="#7c3aed" stroke-dasharray="9 4 2 4"/>
-    <text x="1484" y="984" class="small">点划线：Service使能</text>
-  </svg>
+  <text x="40" y="1125" class="section">图例</text><line x1="110" y1="1120" x2="165" y2="1120" class="topic"/><text x="175" y="1125" class="small">Topic / 数据流</text><line x1="330" y1="1120" x2="385" y2="1120" class="tfline"/><text x="395" y="1125" class="small">TF / 历史坐标转换</text><line x1="590" y1="1120" x2="645" y2="1120" class="controlLine"/><text x="655" y="1125" class="small">Service / 状态控制</text><line x1="845" y1="1120" x2="900" y2="1120" class="safeLine"/><text x="910" y="1125" class="small">安全联锁 / 故障路径</text><text x="1280" y="1125" class="small">安全默认：entry gate / pretrack / IO / auto recovery 均需现场标定后启用</text>
+</svg>
