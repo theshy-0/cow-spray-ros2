@@ -8,7 +8,7 @@
 
 ## 系统结构
 
-![当前 ROS 2 乳头识别与机械臂视觉伺服系统结构图](docs/system_architecture.svg)
+![当前 ROS 2 乳头识别与机械臂视觉伺服系统结构图](./docs/system_architecture.svg)
 
 图中连线含义：
 
